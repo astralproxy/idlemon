@@ -33,7 +33,7 @@ const SCHEMAS = {
     parse: parseSkill,
   },
   monsters: {
-    required: ["Name", "Level", "Damage", "Loot"],
+    required: ["Name", "Level", "HP", "Damage", "Loot"],
     parse: parseMonster,
   },
   loot: {
@@ -52,9 +52,7 @@ const SCHEMAS = {
         skill,
         slot: row.Slot.trim(),
         value: number(row.Value, "Value", 0),
-        effectValue: row["Skill Effect"].trim()
-          ? number(row["Skill Effect"], "Skill Effect", 0)
-          : 0,
+        ...parseSkillEffect(row["Skill Effect"], skill),
         rarity,
       };
     },
@@ -72,6 +70,23 @@ const SCHEMAS = {
     },
   },
 };
+
+function parseSkillEffect(value, skill) {
+  const effect = value.trim();
+  if (effect === "") {
+    return { effectValue: 0, effectIsPercentage: false };
+  }
+  if (!effect.endsWith("%")) {
+    return { effectValue: number(effect, "Skill Effect", 0), effectIsPercentage: false };
+  }
+  if (!["defend", "heal"].includes(skill.toLowerCase())) {
+    throw new Error(`"Skill Effect" percentages are only supported for Defend and Heal.`);
+  }
+  return {
+    effectValue: percentage(effect.slice(0, -1).trim(), "Skill Effect"),
+    effectIsPercentage: true,
+  };
+}
 
 function parseSkill(row) {
   const name = requiredText(row.Name, "Name");
@@ -95,12 +110,13 @@ function parseMonster(row) {
     name,
     type: row.Type?.trim() ?? "",
     level,
+    health: number(row.HP, "HP", 1),
     damage: number(row.Damage, "Damage", 0),
-    health: level * 10,
     xp: level * 10,
     unlock_level: level,
-    lootChance: row.Chance?.trim() ? percentage(row.Chance, "Chance") : 100,
+    lootChance: row["Loot Chance"]?.trim() ? percentage(row["Loot Chance"], "Loot Chance") : 100,
     materialCount: row["Mat Count"]?.trim() ? integer(row["Mat Count"], "Mat Count", 0) : 1,
+    materialChance: row["Mat Chance"]?.trim() ? percentage(row["Mat Chance"], "Mat Chance") : 100,
     lootNames: references(row.Loot),
     materialNames: references(row.Materials ?? row.Currency ?? ""),
   };

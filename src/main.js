@@ -9,6 +9,7 @@ import {
   createInitialState,
   equipLoot,
   experienceForNextLevel,
+  getPlayerMaxHp,
   getPlayerStats,
   MAX_OFFLINE_SECONDS,
   parseSavedState,
@@ -82,6 +83,7 @@ const elements = {
   xpMeter: document.querySelector("#xp-meter"),
   currencyCount: document.querySelector("#currency-count"),
   hp: document.querySelector("#player-hp"),
+  hpMax: document.querySelector("#player-max-hp"),
   armor: document.querySelector("#player-armor"),
   damage: document.querySelector("#player-damage"),
   playerStatsToggle: document.querySelector("#player-stats-toggle"),
@@ -89,6 +91,7 @@ const elements = {
   playerStatsCompact: document.querySelector("#player-stats-compact"),
   compactPlayerLevel: document.querySelector("#compact-player-level"),
   compactPlayerHp: document.querySelector("#compact-player-hp"),
+  compactPlayerHpMax: document.querySelector("#compact-player-max-hp"),
   compactPlayerArmor: document.querySelector("#compact-player-armor"),
   compactPlayerDamage: document.querySelector("#compact-player-damage"),
   monsterSelect: document.querySelector("#monster-select"),
@@ -177,7 +180,10 @@ function lootEffectText(item) {
     return "No associated skill";
   }
   const skill = content.skills.find((candidate) => candidate.name === item.skill);
-  return skill ? `${item.skill} (${numberFormat.format(item.effectValue)})` : item.skill;
+  const effectValue = item.effectIsPercentage
+    ? `${numberFormat.format(item.effectValue)}%`
+    : numberFormat.format(item.effectValue);
+  return skill ? `${item.skill} (${effectValue})` : item.skill;
 }
 
 function monsterDisplayName(monster) {
@@ -230,10 +236,12 @@ function render() {
   elements.currencyCount.textContent = numberFormat.format(state.currencyBalance);
   elements.shopCurrencyCount.textContent = numberFormat.format(state.currencyBalance);
   elements.hp.textContent = numberFormat.format(state.hp);
+  elements.hpMax.textContent = numberFormat.format(getPlayerMaxHp(state.level));
   elements.armor.textContent = numberFormat.format(stats.defense);
   elements.damage.textContent = numberFormat.format(stats.damage);
   elements.compactPlayerLevel.textContent = numberFormat.format(state.level);
   elements.compactPlayerHp.textContent = numberFormat.format(state.hp);
+  elements.compactPlayerHpMax.textContent = numberFormat.format(getPlayerMaxHp(state.level));
   elements.compactPlayerArmor.textContent = numberFormat.format(stats.defense);
   elements.compactPlayerDamage.textContent = numberFormat.format(stats.damage);
   elements.playerStatsDetails.hidden = playerStatsCollapsed;

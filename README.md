@@ -22,20 +22,20 @@ When sheet data changes, missing Monster Loot/Material references are ignored an
 
 ### Worksheet schemas
 
-Column names are case-sensitive. Every listed column is required, except `Monsters.Type` and `Monsters.Chance`, which may be omitted or left blank.
+Column names are case-sensitive. Every listed column is required, except `Monsters.Type`, `Monsters.Loot Chance`, and `Monsters.Mat Chance`, which may be omitted or left blank.
 
 | Worksheet | Columns | Meaning |
 | --- | --- | --- |
 | `Skills` | `Name` | Each row names a supported effect type: `Attack`, `Magic`, `Defend`, `Heal`, `Revive`, or `Flee`. |
-| `Monsters` | `Name,Type,Level,Damage,Loot,Materials,Mat Count,Chance` | `Type` may be omitted or blank; set it to `Boss` for Boss enemies. Other type names are regular monsters. `Chance` may be omitted or blank; it is the 0–100 percent chance that the monster drops its listed loot and defaults to 100. `Mat Count` is the number of each listed Material awarded per defeat; it defaults to 1 and may be 0. Health and XP are each `Level × 10`; `Level` also sets the player level required to unlock the monster. `Damage` is dealt between surviving player attacks. `Loot` and `Materials` are item names from the corresponding tabs. The material-reference column may also be omitted or use the legacy header `Currency`. Separate multiple names with `;` or `|`. |
-| `Loot` | `Name,Slot,Value,Skill,Skill Effect,Rarity` | Loot item, equipment slot, numeric damage/value, optional skill name from `Skills`, numeric strength for that skill (leave blank if unused), and rarity (`Trash`, `Common`, `Uncommon`, `Rare`, `Epic`, `Legendary`, or `Mythic`). Leave `Slot` blank for an instant-use item. Monster defeats put referenced loot in the Bag. One item can occupy each slot in Equipment. |
+| `Monsters` | `Name,Type,Level,HP,Damage,Loot,Materials,Mat Count,Loot Chance,Mat Chance` | `HP` sets the monster's health. `Type` may be omitted or blank; set it to `Boss` for Boss enemies. Other type names are regular monsters. `Loot Chance` is the 0–100 percent chance of dropping listed loot; `Mat Chance` independently controls listed Material drops. Either chance may be omitted or blank and defaults to 100. `Mat Count` is the number of each listed Material awarded when materials drop; it defaults to 1 and may be 0. XP is `Level × 10`; `Level` also sets the player level required to unlock the monster. `Damage` is dealt between surviving player attacks. `Loot` and `Materials` are item names from the corresponding tabs. The material-reference column may also be omitted or use the legacy header `Currency`. Separate multiple names with `;` or `|`. |
+| `Loot` | `Name,Slot,Value,Skill,Skill Effect,Rarity` | Loot item, equipment slot, numeric damage/value, optional skill name from `Skills`, and skill strength as a number or (for `Defend` and `Heal`) a percentage such as `25%`; leave blank if unused. Rarity must be `Trash`, `Common`, `Uncommon`, `Rare`, `Epic`, `Legendary`, or `Mythic`. Leave `Slot` blank for an instant-use item. Monster defeats put referenced loot in the Bag. One item can occupy each slot in Equipment. |
 | `Materials` | `Name,Value,Uses` | Material item, its numeric value, and its intended uses. Monsters award each referenced Material on every defeat; sell these items in the Shop to add their `Value` to spendable Currency. |
 Valid `Skills.Name` values are:
 
 - `Attack`: a consumable hits the selected monster for the Loot row's `Skill Effect`; equipped loot increases damage by its `Value`.
 - `Magic`: deals damage like `Attack`; consumables hit the selected monster for the Loot row's `Skill Effect`, and equipped loot increases damage by its `Value`.
-- `Defend`: equipped loot adds its `Skill Effect` to player defense; a consumable applies that amount to the next incoming hit.
-- `Heal`: a consumable restores the Loot row's `Skill Effect` in HP, up to the 100 HP maximum.
+- `Defend`: a numeric `Skill Effect` reduces incoming damage by that amount; a percentage reduces damage by that percent. Equipped loot applies on each hit, while a consumable applies to the next incoming hit.
+- `Heal`: a numeric `Skill Effect` restores that many HP; a percentage restores that percent of the player's current max HP. Healing is capped at max HP.
 - `Revive`: a consumable item with this skill can be used after Game Over to restore full HP and resume the fight; its `Skill Effect` is ignored.
 - `Flee`: using a consumable item with this skill abandons the current monster and pauses on Prepare.
 
@@ -52,9 +52,9 @@ Revive
 Flee
 
 Monsters
-Name,Type,Level,Damage,Loot,Materials
-Green,Normal,1,4,Feather; Spatula,Bottlecap
-Blue,Normal,2,8,Sheet Pan,
+Name,Type,Level,HP,Damage,Loot,Materials,Mat Count,Loot Chance,Mat Chance
+Green,Normal,1,10,4,Feather; Spatula,Bottlecap,1,100,75
+Blue,Normal,2,20,8,Sheet Pan,,1,50,100
 
 Loot
 Name,Slot,Value,Skill,Skill Effect,Rarity
@@ -63,6 +63,8 @@ Spatula,Hand,3,Attack,2,Rare
 Sheet Pan,Offhand,5,Defend,2,Uncommon
 Damage Potion,,0,Attack,3,Mythic
 Magic Orb,,0,Magic,3,Epic
+Shield Potion,,0,Defend,50%,Uncommon
+Healing Potion,,0,Heal,25%,Rare
 
 Materials
 Name,Value,Uses
@@ -74,8 +76,8 @@ Each section above belongs on its own worksheet; do not include the section labe
 ## Game behavior
 
 - The game performs one automatic attack per game-second; Game Speed multiplies game time by 1×, 2×, or 5×. Excess damage does not carry into the next monster.
-- Player health starts at 100. Monsters deal their `Damage` value after each player attack that does not defeat them; equipped defense reduces this damage.
-- At zero player health, combat pauses and Game Over shows total monsters defeated. A loot item with skill `Revive` in the Bag can be consumed to restore 100 health and resume the fight; if no Revive item is available, use Start Over to clear the run and begin again.
+- Player max HP starts at 400 and increases by 15 per level-up, up to a cap of 1,900. Monsters deal their `Damage` value after each player attack that does not defeat them; equipped defense reduces this damage.
+- At zero player health, combat pauses and Game Over shows total monsters defeated. A loot item with skill `Revive` in the Bag can be consumed to restore full HP and resume the fight; if no Revive item is available, use Start Over to clear the run and begin again.
 - Damage starts at 1 and increases by the sum of the `Value`s of equipped loot. Loot picked up from monster defeats goes into the Bag; equipping a Bag item activates its associated skill. Each Equipment slot holds one item, and replacing an item returns it to the Bag.
 - Equipment displays the Hand, Offhand, Head, Chest, Hands, and Feet slots, with each equipped item shown alongside its slot.
 - Player Stats, Equipment, and Bag sections can be collapsed independently.
@@ -86,15 +88,15 @@ Each section above belongs on its own worksheet; do not include the section labe
 - Changing targets during a fight queues the new target; the current monster must be defeated first. Selecting the current monster again cancels the queued target.
 - The Shop keeps two distinct random slotless loot offers until purchased; loot with a defined `Slot` is never sold there. Buying an offer costs spendable Currency equal to that loot item's `Value`, adds it to the Bag, and replaces the purchased offer. Refreshing both offers costs 5 Currency. Materials awarded by monsters are stored in the Bag and add to the spendable Currency balance only when sold in the Shop.
 - In the Shop, the Player Stats section is hidden and Bag loot can be sold for its `Value`; selling Rare, Epic, Legendary, or Mythic loot requires confirmation. Bag rows show each item's Currency value separately from the Sell controls, and stacks of more than five can be sold all at once.
-- Loot with a blank `Slot` is a consumable. Using it consumes one item and applies its associated skill once: `Attack` and `Magic` hit the selected monster for the Loot item's `Skill Effect`, while `Defend` reduces the next incoming hit by its `Skill Effect`.
+- Loot with a blank `Slot` is a consumable. Using it consumes one item and applies its associated skill once: `Attack` and `Magic` hit the selected monster for the Loot item's `Skill Effect`, while `Defend` reduces the next incoming hit by its numeric amount or percentage.
 - Slotless items in the Bag are also available as quick-use buttons in a single row beneath the Monster section.
-- A consumable with the `Heal` skill restores its `Effect` in HP, capped at 100. A consumable with the `Revive` skill restores full HP and resumes combat after Game Over; its `Effect` is ignored.
+- A consumable with the `Heal` skill restores its numeric `Effect` in HP or the listed percentage of max HP, capped at the player's current max HP. A consumable with the `Revive` skill restores full HP and resumes combat after Game Over; its `Effect` is ignored.
 - A consumable with the `Flee` skill ends the current fight and switches to Prepare. Returning to Fight leaves the target unselected until the player chooses a monster.
-- Monster health and XP are each `Level × 10`; monster level also sets its player-level unlock requirement.
+- Monster health is set by the `HP` column; XP is `Level × 10`, and monster level also sets its player-level unlock requirement.
 - Defeating a monster grants its XP and each loot/Material item referenced by the monster.
-- Each monster defeat makes one random percentage check against its `Chance` before granting that monster's listed loot; each listed Material is awarded in the amount set by `Mat Count`. The Monster rewards text shows the loot drop chance beside each listed Loot item.
-- When `DEBUG_ENABLED` is true, the Monster section shows the latest loot roll, Chance, and whether loot dropped.
-- Player XP required for each next level is 25 times the current player level. Monsters unlock based on player level.
+- Each monster defeat checks `Loot Chance` and `Mat Chance` independently before granting listed loot or Materials; each listed Material is awarded in the amount set by `Mat Count`.
+- When `DEBUG_ENABLED` is true, the Monster section shows the latest loot roll, Loot Chance, and whether loot dropped.
+- XP to reach the next level is `round(0.02x³ + 3.06x² − 13.68x + 81.96)`, where `x` is the level being reached. For example, reaching level 2 requires 67 XP and reaching level 3 requires 69 XP. Monsters unlock based on player level.
 - Progress is saved in this browser's local storage; no account or server is used.
 - Use the Profile page's restore key to export a progress snapshot and restore it in another browser; anyone with the key can access that snapshot.
 - Use Settings to swap the displayed order of Equipment and Bag; the preference is saved in this browser.

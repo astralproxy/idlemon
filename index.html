@@ -100,7 +100,7 @@
           </div>
           <div id="player-stats-compact" class="player-stats-compact" aria-label="Player stats summary" hidden>
             <span>Level: <strong id="compact-player-level">1</strong></span>
-            <span>HP: <strong id="compact-player-hp">100</strong> [D: <strong id="compact-player-armor">0</strong>]</span>
+            <span>HP: <strong id="compact-player-hp">400</strong>/<strong id="compact-player-max-hp">400</strong> [D: <strong id="compact-player-armor">0</strong>]</span>
             <span>DPS: <strong id="compact-player-damage">1</strong></span>
           </div>
           <div id="player-stats-details">
@@ -114,9 +114,9 @@
                 <p id="player-xp" class="muted"></p>
               </article>
               <article class="panel summary-card">
-                <span class="summary-label">HP / Defense</span>
-                <strong class="summary-value"><span id="player-hp">100</span><span class="stat-divider"> / </span><span id="player-armor">0</span></strong>
-                <span class="muted">Current health / damage reduction</span>
+                <span class="summary-label">HP / Max HP / Defense</span>
+                <strong class="summary-value"><span id="player-hp">400</span><span class="stat-divider"> / </span><span id="player-max-hp">400</span><span class="stat-divider"> / </span><span id="player-armor">0</span></strong>
+                <span class="muted">Current health / maximum health / damage reduction</span>
               </article>
               <article class="panel summary-card">
                 <span class="summary-label">DPS</span>
@@ -222,9 +222,9 @@
           <p>Choose a monster from the target list. Your character attacks automatically once per game-second; change Game Speed in Settings to adjust how quickly game time passes. If you choose a different monster during a fight, your character finishes the current monster before switching. Monsters deal their listed damage between player attacks; armor reduces incoming damage.</p>
           <p>Loot goes into your Bag. Equip an item to an available Equipment slot to activate its associated skill; equipping another item in that slot returns the previous item to your Bag. Damage starts at 1 and increases by the sum of the equipped items' values. Attack and Magic skills both deal damage.</p>
           <p>Use an item with the Flee skill to abandon the current monster and pause in Prepare. Choose a monster after returning to Fight to resume combat.</p>
-          <p>Skills activate only when their listed level is reached and their associated loot is equipped. Monster health and experience rewards are based on monster level.</p>
+          <p>Skills activate only when their listed level is reached and their associated loot is equipped. Defend effects can reduce damage by a flat amount or percentage, and Heal effects can restore a flat amount or percentage of your max HP. Monster health is set by its HP value; experience rewards are based on monster level.</p>
           <p>Manually switching to Prepare or Shop does not pause combat. Defeating a Boss pauses combat and opens the Shop. Choose a different monster to resume.</p>
-          <p>At zero player health, combat pauses and a Game Over screen shows your total monsters defeated. A Revive skill item in your Bag can restore 100 health and continue the fight.</p>
+          <p>Player max HP starts at 400 and increases by 15 per level-up, up to 1,900. At zero player health, combat pauses and a Game Over screen shows your total monsters defeated. A Revive skill item in your Bag can restore full HP and continue the fight.</p>
           <p>Combat also pauses while the main menu is open or while you are viewing Profile, Help, or another menu page.</p>
           <p>Progress is saved in this browser. Use the Profile page to copy a restore key and bring a progress snapshot to another machine. Offline progress is capped at eight hours.</p>
         </div>

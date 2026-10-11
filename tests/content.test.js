@@ -5,8 +5,8 @@ import { parseCsv } from "../src/csv.js";
 
 const csvByCategory = {
   skills: "Name\nAttack\nDefend\nHeal\nRevive\nFlee\nMagic",
-  monsters: "Name,Type,Level,Damage,Loot,Materials,Mat Count,Chance\nGreen,Normal,1,4,Feather; Spatula,Bottlecap,3,65\nBoss,Boss,2,10,,,,",
-  loot: "Name,Slot,Value,Skill,Skill Effect,Rarity\nFeather,Hand,1,Attack,1,Common\nSpatula,Hand,3,Attack,2,Rare\nSheet Pan,Offhand,5,Defend,2,Uncommon\nDamage Potion,,0,Attack,3,Mythic\nMagic Wand,Head,2,Magic,3,Rare",
+  monsters: "Name,Type,Level,HP,Damage,Loot,Materials,Mat Count,Loot Chance,Mat Chance\nGreen,Normal,1,15,4,Feather; Spatula,Bottlecap,3,65,75\nBoss,Boss,2,25,10,,,,,",
+  loot: "Name,Slot,Value,Skill,Skill Effect,Rarity\nFeather,Hand,1,Attack,1,Common\nSpatula,Hand,3,Attack,2,Rare\nSheet Pan,Offhand,5,Defend,2,Uncommon\nDamage Potion,,0,Attack,3,Mythic\nMagic Wand,Head,2,Magic,3,Rare\nGuard Charm,Chest,0,Defend,25%,Rare\nHealing Potion,,0,Heal,25%,Uncommon",
   materials: "Name,Value,Uses\nBottlecap,1,Shop",
 };
 
@@ -40,10 +40,11 @@ test("loads and validates all published worksheet CSVs", async () => {
   assert.equal(content.monsters[0].id, "green");
   assert.equal(content.monsters[0].type, "Normal");
   assert.equal(content.monsters[1].type, "Boss");
-  assert.equal(content.monsters[0].health, 10);
+  assert.equal(content.monsters[0].health, 15);
   assert.equal(content.monsters[0].xp, 10);
   assert.equal(content.monsters[0].damage, 4);
   assert.equal(content.monsters[0].lootChance, 65);
+  assert.equal(content.monsters[0].materialChance, 75);
   assert.equal(content.monsters[0].materialCount, 3);
   assert.deepEqual(content.monsters[0].lootNames, ["Feather", "Spatula"]);
   assert.deepEqual(content.monsters[0].materialNames, ["Bottlecap"]);
@@ -61,6 +62,9 @@ test("loads and validates all published worksheet CSVs", async () => {
   assert.equal(content.loot[2].description, "Associated skill: Defend");
   assert.equal(content.loot[4].skill, "Magic");
   assert.equal(content.loot[4].effectValue, 3);
+  assert.equal(content.loot[5].effectValue, 25);
+  assert.equal(content.loot[5].effectIsPercentage, true);
+  assert.equal(content.loot[6].effectIsPercentage, true);
 });
 
 test("treats loot linked to a removed skill as collectible loot", async () => {
@@ -82,7 +86,7 @@ test("treats loot linked to a removed skill as collectible loot", async () => {
   assert.match(content.warnings[0], /missing skill "Defend"/);
 });
 
-test("defaults an omitted Monsters Chance column to 100 percent and validates supplied values", async () => {
+test("defaults blank or omitted monster drop chances to 100 percent and validates supplied values", async () => {
   const urls = Object.fromEntries(Object.keys(csvByCategory).map((category) => [
     category,
     `https://sheets.example/${category}`,
@@ -93,21 +97,40 @@ test("defaults an omitted Monsters Chance column to 100 percent and validates su
   });
 
   const withoutChance = await loadWithMonsters(
-    "Name,Type,Level,Damage,Loot,Materials\nGreen,Normal,1,4,Feather; Spatula,Bottlecap",
+    "Name,Type,Level,HP,Damage,Loot,Materials\nGreen,Normal,1,17,4,Feather; Spatula,Bottlecap",
   );
   assert.equal(withoutChance.monsters[0].lootChance, 100);
+  assert.equal(withoutChance.monsters[0].materialChance, 100);
   assert.equal(withoutChance.monsters[0].materialCount, 1);
+  const withBlankChance = await loadWithMonsters(
+    "Name,Level,HP,Damage,Loot,Loot Chance,Mat Chance\nGreen,1,17,4,Feather,,",
+  );
+  assert.equal(withBlankChance.monsters[0].lootChance, 100);
+  assert.equal(withBlankChance.monsters[0].materialChance, 100);
   const withZeroMaterials = await loadWithMonsters(
-    "Name,Type,Level,Damage,Loot,Materials,Mat Count,Chance\nGreen,Normal,1,4,Feather,Bottlecap,0,100",
+    "Name,Type,Level,HP,Damage,Loot,Materials,Mat Count,Loot Chance,Mat Chance\nGreen,Normal,1,17,4,Feather,Bottlecap,0,100,25",
   );
   assert.equal(withZeroMaterials.monsters[0].materialCount, 0);
+  assert.equal(withZeroMaterials.monsters[0].materialChance, 25);
   await assert.rejects(
-    loadWithMonsters("Name,Level,Damage,Loot,Materials,Chance\nGreen,1,4,Feather,,101"),
-    /Chance.*percentage from 0 to 100/,
+    loadWithMonsters("Name,Level,HP,Damage,Loot,Loot Chance\nGreen,1,17,4,Feather,101"),
+    /Loot Chance.*percentage from 0 to 100/,
   );
   await assert.rejects(
-    loadWithMonsters("Name,Level,Damage,Loot,Mat Count\nGreen,1,4,Feather,1.5"),
+    loadWithMonsters("Name,Level,HP,Damage,Loot,Mat Chance\nGreen,1,17,4,Feather,101"),
+    /Mat Chance.*percentage from 0 to 100/,
+  );
+  await assert.rejects(
+    loadWithMonsters("Name,Level,HP,Damage,Loot,Mat Count\nGreen,1,17,4,Feather,1.5"),
     /Mat Count.*whole number/,
+  );
+  await assert.rejects(
+    loadWithMonsters("Name,Level,Damage,Loot\nGreen,1,4,Feather"),
+    /missing columns: HP/,
+  );
+  await assert.rejects(
+    loadWithMonsters("Name,Level,HP,Damage,Loot\nGreen,1,,4,Feather"),
+    /\"HP\" must be a number/,
   );
 });
 
@@ -120,8 +143,8 @@ test("accepts a Monsters sheet without a Type column and defaults Type to blank"
     const category = new URL(url).pathname.slice(1);
     const text = category === "monsters"
       ? csvByCategory.monsters.replace(
-        "Name,Type,Level,Damage,Loot,Materials,Mat Count,Chance\nGreen,Normal,1,4,Feather; Spatula,Bottlecap,3,65\nBoss,Boss,2,10,,,,",
-        "Name,Level,Damage,Loot,Materials,Mat Count,Chance\nGreen,1,4,Feather; Spatula,Bottlecap,3,65\nBoss,2,10,,,1,",
+        "Name,Type,Level,HP,Damage,Loot,Materials,Mat Count,Loot Chance,Mat Chance\nGreen,Normal,1,15,4,Feather; Spatula,Bottlecap,3,65,75\nBoss,Boss,2,25,10,,,,,",
+        "Name,Level,HP,Damage,Loot,Materials,Mat Count,Loot Chance,Mat Chance\nGreen,1,15,4,Feather; Spatula,Bottlecap,3,65,75\nBoss,2,25,10,,,1,,",
       )
       : csvByCategory[category];
     return { ok: true, text: async () => text };
@@ -129,7 +152,9 @@ test("accepts a Monsters sheet without a Type column and defaults Type to blank"
 
   assert.equal(content.monsters[0].type, "");
   assert.equal(content.monsters[1].type, "");
+  assert.equal(content.monsters[0].health, 15);
   assert.equal(content.monsters[0].lootChance, 65);
+  assert.equal(content.monsters[0].materialChance, 75);
   assert.equal(content.monsters[0].materialCount, 3);
 });
 
@@ -153,6 +178,14 @@ test("validates supported Skills names and numeric Loot effect strength", async 
   await assert.rejects(
     loadWithSheet("loot", "Name,Slot,Value,Skill,Skill Effect,Rarity\nItem,Hand,1,Attack,strong,Common"),
     /"Skill Effect" must be a number/,
+  );
+  await assert.rejects(
+    loadWithSheet("loot", "Name,Slot,Value,Skill,Skill Effect,Rarity\nItem,Hand,1,Attack,25%,Common"),
+    /percentages are only supported for Defend and Heal/,
+  );
+  await assert.rejects(
+    loadWithSheet("loot", "Name,Slot,Value,Skill,Skill Effect,Rarity\nItem,,0,Heal,101%,Common"),
+    /Skill Effect.*percentage from 0 to 100/,
   );
 });
 

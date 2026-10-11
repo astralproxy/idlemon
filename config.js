@@ -1,6 +1,6 @@
 export const DEBUG_ENABLED = true;
 
-const publishedCsvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRurGwCn_YeWPak61zh_0BEtjoaiaycFOddq7kBN5XP9TFgtYMsEXWwSIVz9ZzLe1d4xWek78Ovc2Jp/pub?output=csv&gid=";
+const publishedCsvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTC0eRjsrgC8EcIsn1_Rt5zwkta1U5gVVAPfv7XJem4UKwmgNcUf8mlz2qjEzDBPmnBYEUECSrle6YU/pub?output=csv&gid=";
 
 export const SHEET_CSV_URLS = {
   skills: `${publishedCsvUrl}1053981104`,
