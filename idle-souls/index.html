@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#17222d">
+    <title>Idle Souls</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="page">
+      <header class="page-header">
+        <div>
+          <h1>Idle Souls</h1>
+          <!--<p class="eyebrow">A passive monster-hunting game</p>-->
+        </div>
+        <div class="header-actions">
+          <button id="menu-toggle" class="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="site-menu" hidden>
+            <span></span><span></span><span></span>
+          </button>
+          <nav id="site-menu" class="site-menu panel" aria-label="Main menu" hidden>
+            <button class="menu-item" type="button" data-page="profile">Profile</button>
+            <button class="menu-item" type="button" data-page="help">Help</button>
+            <button class="menu-item" type="button" data-page="settings">Settings</button>
+            <button id="cheat-menu-item" class="menu-item" type="button" data-page="cheat" hidden>CHEAT</button>
+          </nav>
+        </div>
+      </header>
+
+      <section id="error-panel" class="panel error-panel" role="alert" hidden>
+        <h2>Unable to start the game</h2>
+        <p id="error-message"></p>
+        <button id="reset-error-game" class="button reset-button" type="button">Reset saved game and retry</button>
+      </section>
+
+      <div id="game" hidden>
+        <div class="combat-tabs" role="tablist" aria-label="Game mode">
+          <button id="fight-tab" class="combat-tab" type="button" role="tab" aria-selected="true" aria-controls="monster-section" tabindex="0">Fight</button>
+          <button id="prepare-tab" class="combat-tab" type="button" role="tab" aria-selected="false" aria-controls="gear-panel" tabindex="-1">Prepare</button>
+          <button id="shop-tab" class="combat-tab" type="button" role="tab" aria-selected="false" aria-controls="shop-section" tabindex="-1">Shop</button>
+        </div>
+        <p id="shop-locked-tooltip" class="shop-locked-tooltip" role="status" hidden>Defeat another Boss to unlock the Shop.</p>
+        <section class="panel status-panel" aria-label="Game status">
+          <p id="game-status" class="status" role="status" aria-live="polite">Loading game data…</p>
+        </section>
+        <section id="shop-section" class="panel shop-panel" aria-labelledby="shop-title" hidden>
+          <div class="section-heading">
+            <h2 id="shop-title">Shop</h2>
+            <div class="shop-header-actions">
+              <span class="gear-currency-count">Currency: <strong id="shop-currency-count">0</strong></span>
+            </div>
+          </div>
+          <button id="refresh-shop" class="button secondary shop-refresh-button" type="button">Refresh Shop · 5 Currency</button>
+          <div id="shop-list" class="shop-list"></div>
+        </section>
+        <section id="monster-section" class="panel combat-panel monster-panel">
+          <div class="monster-select-row">
+            <label for="monster-select">Fighting...</label>
+            <select id="monster-select"></select>
+          </div>
+          <article id="monster-card" class="monster-card">
+            <div id="active-monster-card">
+              <div class="monster-card-heading">
+                <h3 id="monster-name">—</h3>
+                <span id="monster-level" class="badge"></span>
+              </div>
+              <div class="meter monster-meter" role="progressbar" aria-label="Monster health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+                <span id="monster-health-meter"></span>
+                <span id="monster-health" class="monster-health-label"></span>
+              </div>
+              <p id="monster-reward" class="muted"></p>
+            </div>
+            <div id="boss-killed-card" class="boss-killed-card" hidden>
+              <div class="boss-killed-heading">
+                <h3>BOSS KILLED!</h3>
+              </div>
+              <p id="boss-killed-name" class="boss-killed-name"></p>
+              <p id="boss-killed-reward" class="muted"></p>
+              <p class="boss-shop-hint muted">The Shop has opened!</p>
+            </div>
+          </article>
+          <p id="loot-check-debug" class="loot-check-debug muted" hidden></p>
+          <div id="quick-items-section" class="quick-items-section" hidden>
+            <hr>
+            <div id="quick-items-list" class="quick-items-list" role="group" aria-label="Use bag items"></div>
+          </div>
+        </section>
+        <section id="prepare-monster" class="panel prepare-monster" aria-label="Current monster" hidden>
+          <h2 id="prepare-monster-name"></h2>
+          <div class="meter monster-meter" role="progressbar" aria-label="Monster health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+            <span id="prepare-monster-health-meter"></span>
+            <span id="prepare-monster-health" class="monster-health-label"></span>
+          </div>
+        </section>
+
+        <section class="panel player-stats-panel" aria-labelledby="player-stats-title">
+          <div class="player-stats-heading">
+            <h2 id="player-stats-title">Player Stats</h2>
+            <button id="player-stats-toggle" class="button secondary player-stats-toggle" type="button" aria-expanded="true" aria-controls="player-stats-details" aria-label="Collapse Player Stats">−</button>
+          </div>
+          <div id="player-stats-compact" class="player-stats-compact" aria-label="Player stats summary" hidden>
+            <span>Level: <strong id="compact-player-level">1</strong></span>
+            <span>HP: <strong id="compact-player-hp">100</strong> [D: <strong id="compact-player-armor">0</strong>]</span>
+            <span>DPS: <strong id="compact-player-damage">1</strong></span>
+          </div>
+          <div id="player-stats-details">
+            <div class="summary-grid" aria-label="Player progress">
+              <article class="panel summary-card">
+                <span class="summary-label">Level</span>
+                <strong id="player-level" class="summary-value">1</strong>
+                <div class="meter" role="progressbar" aria-label="Experience to next level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                  <span id="xp-meter"></span>
+                </div>
+                <p id="player-xp" class="muted"></p>
+              </article>
+              <article class="panel summary-card">
+                <span class="summary-label">HP / Defense</span>
+                <strong class="summary-value"><span id="player-hp">100</span><span class="stat-divider"> / </span><span id="player-armor">0</span></strong>
+                <span class="muted">Current health / damage reduction</span>
+              </article>
+              <article class="panel summary-card">
+                <span class="summary-label">DPS</span>
+                <strong id="player-damage" class="summary-value">1</strong>
+                <span class="muted">Damage per second</span>
+              </article>
+            </div>
+            <div id="kill-count" class="kill-count muted">
+              <span id="defeated-count"></span>
+              <span id="unlocked-count"></span>
+            </div>
+          </div>
+        </section>
+
+        <div class="inventory-grid">
+          <section id="gear-panel" class="panel loot-panel gear-panel">
+            <div class="section-heading">
+              <div>
+                <h2>Equipment</h2>
+              </div>
+              <button id="gear-toggle" class="button secondary player-stats-toggle section-collapse-toggle" type="button" aria-expanded="true" aria-controls="gear-content" aria-label="Collapse Equipment">−</button>
+            </div>
+            <div id="gear-content">
+              <div id="gear-list" class="item-list"></div>
+            </div>
+          </section>
+
+          <section id="bag-panel" class="panel loot-panel bag-panel">
+            <div class="section-heading">
+              <div>
+                <h2>Bag</h2>
+              </div>
+              <div class="bag-header-actions">
+                <span class="gear-currency-count">Currency: <strong id="currency-count">0</strong></span>
+                <button id="bag-toggle" class="button secondary player-stats-toggle section-collapse-toggle" type="button" aria-expanded="true" aria-controls="bag-content" aria-label="Collapse Bag">−</button>
+              </div>
+            </div>
+            <div id="bag-content">
+              <div class="bag-tabs" role="tablist" aria-label="Bag categories">
+                <button id="bag-armor-tab" class="bag-tab" type="button" role="tab" aria-selected="true" aria-controls="bag-armor-panel" tabindex="0">Equipment</button>
+                <button id="bag-items-tab" class="bag-tab" type="button" role="tab" aria-selected="false" aria-controls="bag-items-panel" tabindex="-1">Items</button>
+                <button id="bag-materials-tab" class="bag-tab" type="button" role="tab" aria-selected="false" aria-controls="bag-materials-panel" tabindex="-1">Materials</button>
+              </div>
+              <div id="bag-armor-panel" role="tabpanel" aria-labelledby="bag-armor-tab">
+                <div id="bag-armor-list" class="item-list"></div>
+              </div>
+              <div id="bag-items-panel" role="tabpanel" aria-labelledby="bag-items-tab" hidden>
+                <div id="bag-items-list" class="item-list"></div>
+              </div>
+              <div id="bag-materials-panel" role="tabpanel" aria-labelledby="bag-materials-tab" hidden>
+                <div id="bag-materials-list" class="item-list"></div>
+              </div>
+            </div>
+            <p id="bag-shop-note" class="muted bag-shop-note" hidden>Item count does not include currently Equipped items.</p>
+          </section>
+        </div>
+
+        <footer>
+          <p>Combat runs automatically. Progress saves in this browser; offline progress is capped at 8 hours.</p>
+        </footer>
+      </div>
+
+      <section id="game-over" class="panel game-over-panel" aria-labelledby="game-over-title" hidden>
+        <p class="eyebrow">Run ended</p>
+        <h2 id="game-over-title">Game Over</h2>
+        <p id="game-over-stats" class="muted"></p>
+        <div id="revive-prompt" class="revive-prompt" hidden>
+          <p id="revive-message"></p>
+          <button id="revive-player" class="button" type="button"></button>
+        </div>
+        <br />
+        <button id="start-over" class="button" type="button" hidden>Start Over</button>
+      </section>
+
+      <section id="profile-page" class="panel content-page" aria-labelledby="profile-title" hidden>
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Your progress</p>
+            <h2 id="profile-title" tabindex="-1">Profile</h2>
+          </div>
+          <button class="button secondary return-to-game" type="button">Back to game</button>
+        </div>
+        <p class="muted">Your restore key contains a snapshot of your progress. Keep it private; anyone with the key can restore that snapshot.</p>
+        <label for="restore-key">Progress restore key</label>
+        <textarea id="restore-key" class="restore-key" rows="5" readonly spellcheck="false"></textarea>
+        <div class="profile-actions">
+          <button id="copy-restore-key" class="button" type="button">Copy restore key</button>
+          <p id="copy-status" class="muted" role="status" aria-live="polite"></p>
+        </div>
+        <p class="muted restore-instructions">To restore on another machine, open IdleMon, replace the part of its address after <code>#</code> with this key, and load that address. The game will import the snapshot and save it in that browser.</p>
+        <button id="reset-game" class="button reset-button" type="button" hidden>Reset</button>
+      </section>
+
+      <section id="help-page" class="panel content-page" aria-labelledby="help-title" hidden>
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">How to play</p>
+            <h2 id="help-title" tabindex="-1">Help</h2>
+          </div>
+          <button class="button secondary return-to-game" type="button">Back to game</button>
+        </div>
+        <div class="help-copy">
+          <p>Choose a monster from the target list. Your character attacks automatically once per game-second; change Game Speed in Settings to adjust how quickly game time passes. If you choose a different monster during a fight, your character finishes the current monster before switching. Monsters deal their listed damage between player attacks; armor reduces incoming damage.</p>
+          <p>Loot goes into your Bag. Equip an item to an available Equipment slot to activate its associated skill; equipping another item in that slot returns the previous item to your Bag. Damage starts at 1 and increases by the sum of the equipped items' values. Attack and Magic skills both deal damage.</p>
+          <p>Use an item with the Flee skill to abandon the current monster and pause in Prepare. Choose a monster after returning to Fight to resume combat.</p>
+          <p>Skills activate only when their listed level is reached and their associated loot is equipped. Monster health and experience rewards are based on monster level.</p>
+          <p>Manually switching to Prepare or Shop does not pause combat. Defeating a Boss pauses combat and opens the Shop. Choose a different monster to resume.</p>
+          <p>At zero player health, combat pauses and a Game Over screen shows your total monsters defeated. A Revive skill item in your Bag can restore 100 health and continue the fight.</p>
+          <p>Combat also pauses while the main menu is open or while you are viewing Profile, Help, or another menu page.</p>
+          <p>Progress is saved in this browser. Use the Profile page to copy a restore key and bring a progress snapshot to another machine. Offline progress is capped at eight hours.</p>
+        </div>
+      </section>
+
+      <section id="settings-page" class="panel content-page" aria-labelledby="settings-title" hidden>
+        <div class="section-heading">
+          <div>
+            <h2 id="settings-title" tabindex="-1">Settings</h2>
+          </div>
+          <button class="button secondary return-to-game" type="button">Back to game</button>
+        </div>
+        <label class="setting-option" for="swap-inventory-order">
+          <input id="swap-inventory-order" type="checkbox">
+          <span>Swap Equipment and Bag</span>
+        </label>
+        <label class="setting-option" for="hide-status-text">
+          <input id="hide-status-text" type="checkbox" checked>
+          <span>Hide status text</span>
+        </label>
+        <div class="game-speed-setting">
+          <label for="game-speed">Game Speed: <output id="game-speed-value" for="game-speed">1×</output></label>
+          <input id="game-speed" type="range" min="0" max="2" step="1" value="0" list="game-speed-options">
+          <datalist id="game-speed-options">
+            <option value="0" label="1×"></option>
+            <option value="1" label="2×"></option>
+            <option value="2" label="5×"></option>
+          </datalist>
+          <div class="game-speed-labels" aria-hidden="true">
+            <span>1×</span><span>2×</span><span>5×</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="cheat-page" class="panel content-page" aria-labelledby="cheat-title" hidden>
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Debug tools</p>
+            <h2 id="cheat-title" tabindex="-1">CHEAT</h2>
+          </div>
+          <button class="button secondary return-to-game" type="button">Back to game</button>
+        </div>
+        <p class="muted">Select any item to add one copy to your Bag for free.</p>
+        <div id="cheat-loot-list" class="item-list cheat-loot-list"></div>
+      </section>
+
+      <dialog id="sell-confirm-dialog" class="sell-confirm-dialog" aria-labelledby="sell-confirm-title">
+        <h2 id="sell-confirm-title">Confirm sale</h2>
+        <p>Sell <strong id="sell-confirm-item-name"></strong> [<span id="sell-confirm-rarity"></span>] for <strong id="sell-confirm-price"></strong> Currency?</p>
+        <form id="sell-confirm-form" class="sell-confirm-actions" method="dialog">
+          <button class="button" type="submit" form="sell-confirm-form" value="sell">Sell</button>
+          <button class="button secondary" type="submit" form="sell-confirm-form" value="cancel">Cancel</button>
+        </form>
+      </dialog>
+    </main>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
