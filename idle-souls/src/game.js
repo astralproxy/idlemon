@@ -1,8 +1,17 @@
 export const MAX_OFFLINE_SECONDS = 8 * 60 * 60;
 export const SAVE_KEY = "idlemon-save-v1";
 export const SAVE_VERSION = 12;
-export const PLAYER_MAX_HP = 100;
+export const PLAYER_STARTING_MAX_HP = 400;
+export const PLAYER_MAX_HP_PER_LEVEL = 15;
+export const PLAYER_MAX_HP_CAP = 1900;
 export const SHOP_REFRESH_COST = 5;
+
+export function getPlayerMaxHp(level) {
+  return Math.min(
+    PLAYER_MAX_HP_CAP,
+    PLAYER_STARTING_MAX_HP + Math.max(0, level - 1) * PLAYER_MAX_HP_PER_LEVEL,
+  );
+}
 
 export function resetSavedGame(storage = globalThis.localStorage) {
   storage.removeItem(SAVE_KEY);
@@ -42,7 +51,13 @@ export function restoreStateFromKey(key, content, now = Date.now()) {
 }
 
 export function experienceForNextLevel(level) {
-  return level * 25;
+  const nextLevel = level + 1;
+  return Math.round(
+    0.02 * nextLevel ** 3
+      + 3.06 * nextLevel ** 2
+      - 13.68 * nextLevel
+      + 81.96,
+  );
 }
 
 export function createShopOffers(content, random = Math.random) {
@@ -190,13 +205,14 @@ export function createInitialState(content, now = Date.now()) {
     version: SAVE_VERSION,
     level: 1,
     xp: 0,
-    hp: PLAYER_MAX_HP,
+    hp: getPlayerMaxHp(1),
     gameOver: false,
     targetMonsterId: firstMonster.id,
     pendingTargetMonsterId: null,
     monsterHp: firstMonster.health,
     attackRemainder: 0,
     nextHitDefense: 0,
+    nextHitDefensePercent: 0,
     activeTab: "fight",
     awaitingMonsterSelection: false,
     shopUnlocked: false,
@@ -252,9 +268,10 @@ export function parseSavedState(serialized, content) {
   if (!isNonNegativeNumber(state.xp)) {
     throw new Error("The saved experience value is invalid.");
   }
-  const hp = state.hp ?? PLAYER_MAX_HP;
+  const maxHp = getPlayerMaxHp(state.level);
+  const hp = state.hp ?? maxHp;
   const gameOver = state.gameOver ?? false;
-  if (!Number.isFinite(hp) || hp < 0 || hp > PLAYER_MAX_HP || typeof gameOver !== "boolean") {
+  if (!Number.isFinite(hp) || hp < 0 || hp > maxHp || typeof gameOver !== "boolean") {
     throw new Error("The saved player health or game-over state is invalid.");
   }
   if ((hp === 0) !== gameOver) {
@@ -324,6 +341,10 @@ export function parseSavedState(serialized, content) {
   if (!isNonNegativeNumber(nextHitDefense)) {
     throw new Error("The saved temporary defense value is invalid.");
   }
+  const nextHitDefensePercent = state.nextHitDefensePercent ?? 0;
+  if (!isNonNegativeNumber(nextHitDefensePercent) || nextHitDefensePercent > 100) {
+    throw new Error("The saved temporary defense percentage is invalid.");
+  }
   if (!isNonNegativeNumber(state.updatedAt)) {
     throw new Error("The saved timestamp is invalid.");
   }
@@ -377,6 +398,7 @@ export function parseSavedState(serialized, content) {
     monsterHp,
     attackRemainder: state.attackRemainder,
     nextHitDefense,
+    nextHitDefensePercent,
     activeTab,
     awaitingMonsterSelection,
     shopUnlocked,
@@ -439,6 +461,7 @@ export function getPlayerStats(state, content) {
   const bonuses = {
     xp_multiplier: 0,
     defense_flat: 0,
+    defense_percent: 0,
   };
 
   for (const lootId of Object.values(state.gear ?? {})) {
@@ -448,12 +471,17 @@ export function getPlayerStats(state, content) {
       gearDamage += item.value;
     }
     if (skill?.effect === "defense_flat") {
-      bonuses.defense_flat += item.effectValue;
+      if (item.effectIsPercentage) {
+        bonuses.defense_percent += item.effectValue;
+      } else {
+        bonuses.defense_flat += item.effectValue;
+      }
     }
   }
   return {
     damage: 1 + gearDamage,
     defense: bonuses.defense_flat,
+    defensePercent: Math.min(100, bonuses.defense_percent),
     xpMultiplier: Math.max(0, 1 + bonuses.xp_multiplier),
   };
 }
@@ -527,10 +555,14 @@ export function useLoot(state, content, lootId, random = Math.random) {
     state.activeTab = "prepare";
     state.prepareViewed = true;
   } else if (skill.effect === "heal") {
-    if (state.gameOver || state.hp >= PLAYER_MAX_HP) {
+    const maxHp = getPlayerMaxHp(state.level);
+    if (state.gameOver || state.hp >= maxHp) {
       return false;
     }
-    state.hp = Math.min(PLAYER_MAX_HP, state.hp + item.effectValue);
+    const healing = item.effectIsPercentage
+      ? maxHp * item.effectValue / 100
+      : item.effectValue;
+    state.hp = Math.min(maxHp, state.hp + healing);
   } else if (skill.effect === "damage_flat") {
     const target = content.monsters.find((monster) => monster.id === state.targetMonsterId);
     if (!target || target.unlock_level > state.level) {
@@ -542,7 +574,11 @@ export function useLoot(state, content, lootId, random = Math.random) {
       state.monsterHp = target.health;
     }
   } else if (skill.effect === "defense_flat") {
-    state.nextHitDefense += item.effectValue;
+    if (item.effectIsPercentage) {
+      state.nextHitDefensePercent = Math.min(100, (state.nextHitDefensePercent ?? 0) + item.effectValue);
+    } else {
+      state.nextHitDefense += item.effectValue;
+    }
   } else {
     throw new Error(`The "${skill.name}" skill cannot be used from an item.`);
   }
@@ -568,7 +604,7 @@ export function canUseLoot(state, content, lootId) {
     return Boolean(state.targetMonsterId) && !state.awaitingMonsterSelection && !state.gameOver;
   }
   if (skill.effect === "heal") {
-    return !state.gameOver && state.hp < PLAYER_MAX_HP;
+    return !state.gameOver && state.hp < getPlayerMaxHp(state.level);
   }
   if (skill.effect === "damage_flat") {
     const target = content.monsters.find((monster) => monster.id === state.targetMonsterId);
@@ -595,7 +631,7 @@ export function revivePlayer(state, content, lootId) {
     return false;
   }
   consumeLoot(state, item.id);
-  state.hp = PLAYER_MAX_HP;
+  state.hp = getPlayerMaxHp(state.level);
   state.gameOver = false;
   return true;
 }
@@ -672,8 +708,12 @@ function grantKillRewards(state, content, monster, random = Math.random) {
     };
   }
   const materialCount = monster.materialCount ?? 1;
-  if (materialCount > 0) {
-    for (const name of monster.materialNames ?? monster.currencyNames ?? []) {
+  const materialChance = monster.materialChance ?? 100;
+  const materialNames = monster.materialNames ?? monster.currencyNames ?? [];
+  const hasMaterialDrop = materialChance >= 100
+    || (materialCount > 0 && materialNames.length > 0 && Math.floor(random() * 101) < materialChance);
+  if (materialCount > 0 && hasMaterialDrop) {
+    for (const name of materialNames) {
       const item = content.materials.find((material) => material.name === name);
       state.currencyInventory[item.id] = (state.currencyInventory[item.id] ?? 0) + materialCount;
     }
@@ -725,8 +765,11 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
     }
 
     const incomingDamage = Math.max(0, target.damage - stats.defense - state.nextHitDefense);
+    const defensePercent = Math.min(100, stats.defensePercent + (state.nextHitDefensePercent ?? 0));
+    const reducedDamage = Math.max(0, incomingDamage * (1 - defensePercent / 100));
     state.nextHitDefense = 0;
-    state.hp = Math.max(0, state.hp - incomingDamage);
+    state.nextHitDefensePercent = 0;
+    state.hp = Math.max(0, state.hp - reducedDamage);
     if (state.hp === 0) {
       state.gameOver = true;
       state.attackRemainder = 0;

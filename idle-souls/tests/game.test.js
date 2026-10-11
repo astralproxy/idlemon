@@ -9,6 +9,8 @@ import {
   createRestoreKey,
   createInitialState,
   equipLoot,
+  experienceForNextLevel,
+  getPlayerMaxHp,
   getPlayerStats,
   MAX_OFFLINE_SECONDS,
   parseSavedState,
@@ -53,6 +55,7 @@ const content = {
 
 test("combat is automatic and grants rewards, loot, and level-ups", () => {
   const state = createInitialState(content, 100);
+  state.xp = 62;
   advanceGame(state, content, 2);
 
   assert.equal(state.kills.slime, 1);
@@ -61,8 +64,8 @@ test("combat is automatic and grants rewards, loot, and level-ups", () => {
   assert.equal(state.currencyInventory.bottlecap, 1);
   assert.equal(state.currencyBalance, 0);
   assert.equal(state.level, 2);
-  assert.equal(state.xp, 5);
-  assert.equal(state.hp, 96);
+  assert.equal(state.xp, 25);
+  assert.equal(state.hp, 396);
   assert.equal(state.gameOver, false);
   assert.equal(getPlayerStats(state, content).damage, 1);
   assert.equal(getPlayerStats(state, content).defense, 0);
@@ -159,6 +162,27 @@ test("defeating a monster grants its Mat Count for each listed Material", () => 
   advanceGame(state, materialCountContent, 2);
 
   assert.equal(state.currencyInventory.bottlecap, 4);
+});
+
+test("monster materials use an independent Mat Chance roll", () => {
+  const materialChanceContent = {
+    ...content,
+    monsters: content.monsters.map((monster) => ({
+      ...monster,
+      lootChance: 100,
+      materialCount: 4,
+      materialChance: 50,
+    })),
+  };
+  const failedDrop = createInitialState(materialChanceContent);
+  advanceGame(failedDrop, materialChanceContent, 2, () => 0.5);
+  assert.equal(failedDrop.currencyInventory.bottlecap, undefined);
+  assert.equal(failedDrop.lootInventory.jelly, 1);
+
+  const successfulDrop = createInitialState(materialChanceContent);
+  advanceGame(successfulDrop, materialChanceContent, 2, () => 0.49);
+  assert.equal(successfulDrop.currencyInventory.bottlecap, 4);
+  assert.equal(successfulDrop.lootInventory.jelly, 1);
 });
 
 test("selling all of a Material stack grants its total value", () => {
@@ -431,6 +455,7 @@ test("Magic gear and consumables deal damage like Attack", () => {
       ...content.loot,
       { id: "magic-robe", name: "Magic Robe", skill: "Magic", slot: "Head", value: 4, effectValue: 0 },
       { id: "magic-orb", name: "Magic Orb", skill: "Magic", slot: "", value: 0, effectValue: 2 },
+      { id: "percent-guard", name: "Percent Guard", skill: "Defend", slot: "Chest", value: 0, effectValue: 50, effectIsPercentage: true },
     ],
   };
   const state = createInitialState(magicContent);
@@ -445,6 +470,44 @@ test("Magic gear and consumables deal damage like Attack", () => {
   assert.equal(useLoot(state, magicContent, "magic-orb"), true);
   assert.equal(state.monsterHp, 3);
   assert.equal(state.lootInventory["magic-orb"], undefined);
+
+  state.lootInventory["percent-guard"] = 1;
+  equipLoot(state, magicContent, "percent-guard");
+  assert.equal(getPlayerStats(state, magicContent).defensePercent, 50);
+});
+
+test("percentage Defend reduces incoming damage and percentage Heal restores max-HP percentage", () => {
+  const percentageContent = {
+    ...content,
+    monsters: content.monsters.map((monster) => (
+      monster.id === "slime" ? { ...monster, health: 20, damage: 40 } : monster
+    )),
+    loot: [
+      ...content.loot,
+      { id: "percent-guard", name: "Percent Guard", skill: "Defend", slot: "Chest", value: 0, effectValue: 25, effectIsPercentage: true },
+      { id: "percent-shield", name: "Percent Shield", skill: "Defend", slot: "", value: 0, effectValue: 50, effectIsPercentage: true },
+      { id: "percent-heal", name: "Percent Heal", skill: "Heal", slot: "", value: 0, effectValue: 25, effectIsPercentage: true },
+    ],
+  };
+  const state = createInitialState(percentageContent);
+  state.lootInventory["percent-guard"] = 1;
+  state.lootInventory["percent-shield"] = 1;
+  state.lootInventory["percent-heal"] = 1;
+
+  equipLoot(state, percentageContent, "percent-guard");
+  assert.equal(getPlayerStats(state, percentageContent).defensePercent, 25);
+  advanceGame(state, percentageContent, 1);
+  assert.equal(state.hp, 370);
+
+  assert.equal(useLoot(state, percentageContent, "percent-shield"), true);
+  assert.equal(state.nextHitDefensePercent, 50);
+  advanceGame(state, percentageContent, 1);
+  assert.equal(state.hp, 360);
+  assert.equal(state.nextHitDefensePercent, 0);
+
+  state.hp = 200;
+  assert.equal(useLoot(state, percentageContent, "percent-heal"), true);
+  assert.equal(state.hp, 300);
 });
 
 test("slotless loot applies its skill once and is consumed", () => {
@@ -468,24 +531,49 @@ test("slotless loot applies its skill once and is consumed", () => {
   assert.equal(useLoot(state, consumableContent, "shield-potion"), true);
   assert.equal(state.nextHitDefense, 2);
   assert.equal(parseSavedState(JSON.stringify(state), consumableContent).nextHitDefense, 2);
-  advanceGame(state, consumableContent, 1);
-  assert.equal(state.hp, 98);
+  advanceGame(state, consumableContent, 2);
+  assert.equal(state.hp, 400);
   assert.equal(state.nextHitDefense, 0);
   assert.equal(state.lootInventory["shield-potion"], undefined);
 });
 
 test("Heal restores its Effect up to max HP and consumes a potion only when useful", () => {
   const state = createInitialState(content);
-  state.hp = 80;
+  state.hp = 370;
   state.lootInventory["healing-potion"] = 2;
 
   assert.equal(canUseLoot(state, content, "healing-potion"), true);
   assert.equal(useLoot(state, content, "healing-potion"), true);
-  assert.equal(state.hp, 100);
+  assert.equal(state.hp, 400);
   assert.equal(state.lootInventory["healing-potion"], 1);
   assert.equal(canUseLoot(state, content, "healing-potion"), false);
   assert.equal(useLoot(state, content, "healing-potion"), false);
   assert.equal(state.lootInventory["healing-potion"], 1);
+
+  state.level = 2;
+  state.hp = 400;
+  assert.equal(getPlayerMaxHp(state.level), 415);
+  assert.equal(canUseLoot(state, content, "healing-potion"), true);
+  assert.equal(useLoot(state, content, "healing-potion"), true);
+  assert.equal(state.hp, 415);
+});
+
+test("max HP starts at 400 and increases by 15 per level up to 1900", () => {
+  assert.equal(getPlayerMaxHp(1), 400);
+  assert.equal(getPlayerMaxHp(2), 415);
+  assert.equal(getPlayerMaxHp(99), 1870);
+  assert.equal(getPlayerMaxHp(101), 1900);
+
+  const state = createInitialState(content);
+  assert.equal(state.hp, 400);
+  state.level = 99;
+  assert.equal(parseSavedState(JSON.stringify(state), content).hp, 400);
+});
+
+test("XP requirements use the adjusted cubic curve for the next level", () => {
+  assert.equal(experienceForNextLevel(1), 67);
+  assert.equal(experienceForNextLevel(2), 69);
+  assert.equal(experienceForNextLevel(3), 77);
 });
 
 test("Flee consumes its item, pauses combat, and returns without an active monster", () => {
@@ -529,7 +617,7 @@ test("monster damage can end a run and Revive loot restores the player", () => {
   const lethalContent = {
     ...content,
     monsters: content.monsters.map((monster, index) => index === 0
-      ? { ...monster, health: 100, damage: 50 }
+      ? { ...monster, health: 100, damage: 200 }
       : monster),
   };
   const state = createInitialState(lethalContent);
@@ -543,7 +631,7 @@ test("monster damage can end a run and Revive loot restores the player", () => {
 
   state.lootInventory["revive-potion"] = 1;
   assert.equal(useLoot(state, lethalContent, "revive-potion"), true);
-  assert.equal(state.hp, 100);
+  assert.equal(state.hp, 400);
   assert.equal(state.gameOver, false);
   assert.equal(state.lootInventory["revive-potion"], undefined);
 });
