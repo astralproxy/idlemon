@@ -1,0 +1,1200 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #202020;
+  color: #ededed;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --surface: #292929;
+  --surface-raised: #363636;
+  --border: #505050;
+  --muted: #b8b8b8;
+  --accent: #d0d0d0;
+  --accent-dark: #555555;
+  --warning: #c8c8c8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background:
+    linear-gradient(rgb(18 18 18 / 76%), rgb(18 18 18 / 82%)),
+    url("./art/dungeon-wall.jpg") center / cover fixed,
+    #202020;
+}
+
+button,
+select {
+  font: inherit;
+}
+
+.page {
+  width: min(1120px, calc(100% - 36px));
+  margin: 0 auto;
+  padding: 44px 0 24px;
+}
+
+.page-header,
+.section-heading,
+.list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.page-header {
+  align-items: flex-end;
+  margin-bottom: 28px;
+}
+
+.header-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.eyebrow,
+.summary-label {
+  margin: 0 0 7px;
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 0;
+  font-size: clamp(2.4rem, 6vw, 4rem);
+  letter-spacing: -0.06em;
+  line-height: 1;
+}
+
+h2 {
+  margin-bottom: 0;
+  font-size: 1.35rem;
+}
+
+h3 {
+  margin-bottom: 5px;
+  font-size: 1rem;
+}
+
+.status {
+  margin: 0;
+  color: var(--muted);
+  line-height: 20px;
+}
+
+.status-panel {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 8px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0 0;
+}
+
+.panel.player-stats-panel {
+  margin-bottom: 12px;
+  padding: 8px;
+  background: #000;
+}
+
+.player-stats-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.player-stats-heading h2,
+#bag-panel > .section-heading h2,
+#gear-panel > .section-heading h2 {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.bag-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-collapse-toggle {
+  flex: 0 0 28px;
+}
+
+.player-stats-toggle {
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.player-stats-toggle:hover:not(:disabled) {
+  background: transparent;
+  color: #fff;
+}
+
+.player-stats-compact {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding-top: 12px;
+}
+
+.player-stats-compact span {
+  min-width: 0;
+  text-align: center;
+}
+
+.panel.monster-panel,
+.panel.gear-panel,
+.panel.bag-panel {
+  background: #000;
+}
+
+.panel.prepare-monster {
+  margin-bottom: 12px;
+  padding: 8px;
+  background: #000;
+}
+
+.prepare-monster h2 {
+  font-size: 1rem;
+}
+
+.prepare-monster .monster-meter {
+  margin: 8px 0 0;
+}
+
+.player-stats-panel > h2 {
+  font-size: 1rem;
+}
+
+.panel.shop-panel {
+  margin-bottom: 12px;
+  padding: 8px;
+  background: #000;
+}
+
+.shop-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.shop-refresh-button {
+  margin-bottom: 12px;
+}
+
+.bag-shop-note {
+  margin: 12px 0 0;
+  font-style: italic;
+}
+
+.shop-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.panel.shop-item {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  background: var(--surface-raised);
+}
+
+.shop-item-details {
+  min-width: 0;
+}
+
+.shop-item-details h3 {
+  overflow-wrap: anywhere;
+}
+
+.shop-owned-count {
+  color: #aaa;
+  font-size: 0.72em;
+  font-weight: 400;
+}
+
+.shop-item-details p {
+  margin: 0;
+}
+
+.shop-item-actions {
+  display: grid;
+  flex: 0 0 auto;
+  justify-items: end;
+  gap: 8px;
+}
+
+.shop-price {
+  color: var(--accent);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.panel {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgb(41 41 41 / 95%);
+  box-shadow: 0 18px 45px rgb(0 0 0 / 34%);
+}
+
+.summary-card {
+  display: flex;
+  min-height: 104px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 13px 17px;
+}
+
+.summary-value {
+  margin-bottom: 4px;
+  font-size: 1.65rem;
+  line-height: 1;
+}
+
+.summary-card .muted {
+  font-size: 0.76rem;
+}
+
+.summary-card .meter {
+  max-width: 240px;
+  margin: 5px 0;
+}
+
+.stat-divider {
+  color: var(--muted);
+  font-size: 1.1rem;
+}
+
+.muted {
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.meter {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #171717;
+}
+
+.meter span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 180ms ease-out;
+}
+
+.summary-card .meter {
+  margin: 5px 0 8px;
+}
+
+.inventory-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 14px;
+}
+
+.inventory-grid.is-swapped #bag-panel {
+  order: -1;
+}
+
+.inventory-grid.is-shop {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.inventory-grid.is-shop #bag-panel {
+  order: -1;
+}
+
+.setting-option {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  cursor: pointer;
+}
+
+.setting-option input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.game-speed-setting {
+  display: grid;
+  max-width: 360px;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.game-speed-setting label {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.game-speed-setting input {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.game-speed-labels {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.secondary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.combat-panel,
+.skills-panel,
+.loot-panel {
+  min-height: 0;
+  padding-block: 8px;
+  padding-inline: 8px;
+}
+
+.monster-panel {
+  margin-bottom: 12px;
+}
+
+.loot-check-debug {
+  margin-top: 12px;
+  font-size: 0.78rem;
+}
+
+.quick-items-section hr {
+  margin: 12px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.quick-items-list {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.quick-item-button {
+  flex: 0 0 auto;
+  font-size: 0.82rem;
+}
+
+#monster-reward {
+  white-space: pre-line;
+}
+
+.monster-select-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.monster-select-row label {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.monster-select-row select {
+  min-width: 0;
+  flex: 1;
+}
+
+.monster-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.monster-card-heading h3 {
+  margin-bottom: 0;
+}
+
+.boss-killed-card {
+  display: grid;
+  gap: 8px;
+  text-align: center;
+}
+
+.boss-killed-heading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 12px;
+}
+
+.boss-killed-card h3,
+.boss-killed-name,
+.boss-killed-reward {
+  margin: 0;
+}
+
+#boss-killed-reward {
+  white-space: pre-line;
+}
+
+.boss-shop-hint {
+  display: inline-block;
+  width: fit-content;
+  justify-self: center;
+  text-align: center;
+  margin: 0;
+  padding: 6px 10px;
+  background:
+    radial-gradient(circle, #fff176 1px, transparent 1.5px) left top / 8px 3px repeat-x,
+    radial-gradient(circle, #fff176 1px, transparent 1.5px) left bottom / 8px 3px repeat-x,
+    radial-gradient(circle, #fff176 1px, transparent 1.5px) left top / 3px 8px repeat-y,
+    radial-gradient(circle, #fff176 1px, transparent 1.5px) right top / 3px 8px repeat-y;
+  animation: shop-hint-marquee 1.6s linear infinite;
+}
+
+@keyframes shop-hint-marquee {
+  to {
+    background-position:
+      left 8px top 0,
+      left -8px bottom 0,
+      left 0 top -8px,
+      right 0 top 8px;
+  }
+}
+
+.boss-killed-card h3 {
+  color: #fff176;
+  text-align: center;
+}
+
+.boss-killed-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.monster-card-heading .badge {
+  flex: 0 0 auto;
+}
+
+.gear-currency-count {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.gear-currency-count strong {
+  margin-left: 4px;
+  color: var(--accent);
+}
+
+.inline-stat {
+  display: inline-flex;
+  min-width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  margin-left: 5px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  vertical-align: middle;
+}
+
+.game-over-panel {
+  max-width: 680px;
+  margin: 24px auto;
+  padding: 8px;
+  text-align: center;
+}
+
+.game-over-panel h2 {
+  margin-bottom: 12px;
+  font-size: 2rem;
+}
+
+#game-over-stats {
+  white-space: pre-line;
+}
+
+.revive-prompt {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.revive-prompt p {
+  color: var(--muted);
+}
+
+.section-heading {
+  margin-bottom: 20px;
+}
+
+label {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 650;
+}
+
+select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-raised);
+  color: inherit;
+}
+
+select:focus-visible,
+button:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.monster-card {
+  margin-top: 14px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: linear-gradient(135deg, #3b3b3b, #292929);
+}
+
+.badge {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 9px;
+  border-radius: 99px;
+  background: #484848;
+  color: var(--accent);
+  font-size: 0.74rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.monster-card h3 {
+  margin-top: 9px;
+  font-size: 1.35rem;
+}
+
+.monster-meter {
+  position: relative;
+  height: 24px;
+  margin: 12px 0;
+}
+
+.monster-meter #monster-health-meter {
+  background: var(--warning);
+}
+
+.monster-health-label {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: flex !important;
+  width: 100% !important;
+  height: 100% !important;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  background: transparent !important;
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
+  text-shadow: 0 1px 3px #000;
+}
+
+.combat-note {
+  margin: 18px 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.kill-count {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 12px 0 0;
+}
+
+.kill-count span:last-child {
+  text-align: right;
+}
+
+.item-list {
+  display: grid;
+  gap: 10px;
+}
+
+.bag-tabs,
+.combat-tabs {
+  display: flex;
+  gap: 6px;
+  margin: -6px 0 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.combat-tabs {
+  gap: 0;
+  margin: 0 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.bag-tab,
+.combat-tab {
+  min-height: 38px;
+  padding: 7px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.combat-tab {
+  flex: 1 1 0;
+  background: #383838;
+}
+
+.combat-tab + .combat-tab {
+  border-left: 1px solid var(--border);
+}
+
+.bag-tab[aria-selected="true"] {
+  background: var(--surface-raised);
+  color: var(--accent);
+}
+
+.combat-tab[aria-selected="true"] {
+  background: #bdbdbd;
+  color: #202020;
+}
+
+.combat-tab:disabled,
+.combat-tab[aria-disabled="true"] {
+  background: #242424;
+  color: #666;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.shop-locked-tooltip {
+  margin: -4px 0 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.bag-tab:focus-visible,
+.combat-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.list-item {
+  min-width: 0;
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface-raised);
+}
+
+.cheat-loot-item {
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cheat-loot-item:hover {
+  border-color: var(--accent);
+}
+
+.cheat-loot-list {
+  margin-top: 14px;
+}
+
+.loot-item.is-new-loot {
+  border-color: #fff176;
+  box-shadow: 0 0 0 1px #fff176;
+}
+
+.bag-sale-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.bag-sale-value {
+  min-width: 13ch;
+  color: var(--accent);
+  font-size: 0.82rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.gear-item {
+  display: grid;
+  grid-template-columns: minmax(72px, 0.65fr) minmax(0, 1.35fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.gear-slot {
+  color: var(--accent);
+}
+
+.gear-equipped-item {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.gear-item > .button {
+  justify-self: end;
+}
+
+.gear-equipped-item .item-title {
+  margin: 0;
+  font-weight: 650;
+}
+
+.gear-equipped-item .item-description {
+  overflow-wrap: anywhere;
+}
+
+.item-title {
+  margin-bottom: 3px;
+}
+
+.loot-rarity.rarity-trash {
+  color: #777;
+}
+
+.loot-rarity.rarity-common {
+  color: #fff;
+}
+
+.loot-rarity.rarity-uncommon {
+  color: #35c759;
+}
+
+.loot-rarity.rarity-rare {
+  color: #3b82f6;
+}
+
+.loot-rarity.rarity-epic {
+  color: #a855f7;
+}
+
+.loot-rarity.rarity-legendary {
+  color: #f97316;
+}
+
+.loot-rarity.rarity-mythic {
+  border-radius: 3px;
+  background: #fff;
+  color: #e11d48;
+}
+
+.sell-confirm-dialog {
+  width: min(420px, calc(100% - 32px));
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  color: inherit;
+  box-shadow: 0 18px 45px rgb(0 0 0 / 45%);
+}
+
+.sell-confirm-dialog::backdrop {
+  background: rgb(0 0 0 / 65%);
+}
+
+.sell-confirm-dialog h2 {
+  margin-bottom: 14px;
+}
+
+.sell-confirm-dialog p {
+  line-height: 1.6;
+}
+
+.sell-confirm-actions {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.sell-confirm-actions .button {
+  min-width: 120px;
+}
+
+.item-description {
+  max-width: 38ch;
+}
+
+.item-level {
+  margin: 7px 0 0;
+  color: var(--accent);
+  font-size: 0.77rem;
+  font-weight: 650;
+}
+
+.button {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent-dark);
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.button:hover:not(:disabled) {
+  background: #696969;
+}
+
+.button:disabled {
+  background: #414141;
+  color: #a2a2a2;
+  cursor: not-allowed;
+}
+
+.reset-button {
+  border: 1px solid #666;
+  background: #454545;
+}
+
+.reset-button:hover:not(:disabled) {
+  background: #646464;
+}
+
+.menu-toggle {
+  display: inline-flex;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-raised);
+  cursor: pointer;
+}
+
+.menu-toggle:hover {
+  border-color: var(--accent);
+}
+
+.menu-toggle span {
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.site-menu {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  min-width: 160px;
+  gap: 4px;
+  padding: 7px;
+}
+
+.menu-item {
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-item:hover {
+  background: var(--surface-raised);
+  color: var(--accent);
+}
+
+.content-page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 8px;
+}
+
+.content-page .section-heading {
+  align-items: flex-start;
+}
+
+.content-page .section-heading > .button {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.content-page .muted {
+  margin: 14px 0;
+}
+
+.restore-key {
+  display: block;
+  width: 100%;
+  min-height: 100px;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #171717;
+  color: var(--accent);
+  font: 0.8rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.profile-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.restore-instructions {
+  margin-top: 20px !important;
+}
+
+.restore-instructions code {
+  color: var(--accent);
+}
+
+.help-copy p {
+  margin-bottom: 14px;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.content-page h2:focus {
+  outline: none;
+}
+
+.skill-item .badge,
+.loot-item .badge {
+  flex: 0 0 auto;
+}
+
+.skill-item.locked {
+  opacity: 0.68;
+}
+
+.skill-copy {
+  min-width: 0;
+}
+
+.empty-state {
+  padding: 12px 2px;
+}
+
+footer {
+  padding: 18px 2px 0;
+  text-align: center;
+}
+
+footer p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.error-panel {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 26px;
+  border-color: #666;
+}
+
+.error-panel h2 {
+  margin-bottom: 10px;
+}
+
+.error-panel p {
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.button.secondary {
+  background: #484848;
+}
+
+.button.player-stats-toggle,
+.button.player-stats-toggle:hover:not(:disabled) {
+  background: transparent;
+}
+
+@media (max-width: 740px) {
+  .page {
+    width: min(100% - 24px, 560px);
+    padding-top: 28px;
+  }
+
+  .page-header {
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 12px;
+  }
+
+  .header-actions {
+    width: auto;
+    flex: 0 1 auto;
+  }
+
+
+
+  .content-page {
+    padding: 8px;
+  }
+
+  .content-page .section-heading {
+    align-items: flex-start;
+    flex-direction: row;
+    gap: 12px;
+  }
+
+  .profile-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .summary-card {
+    min-width: 0;
+    min-height: 96px;
+    padding: 10px 8px;
+  }
+
+  .summary-label {
+    font-size: 0.72rem;
+  }
+
+  .summary-value {
+    font-size: clamp(1rem, 4.4vw, 1.4rem);
+  }
+
+  .summary-card .muted {
+    font-size: 0.62rem;
+    line-height: 1.3;
+  }
+
+  .inventory-grid,
+  .secondary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .shop-list {
+    grid-template-columns: 1fr;
+  }
+
+  .combat-panel,
+  .skills-panel,
+  .loot-panel {
+    padding: 18px;
+  }
+
+  .gear-item {
+    grid-template-columns: minmax(58px, 0.65fr) minmax(0, 1.35fr) auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boss-shop-hint {
+    animation: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
