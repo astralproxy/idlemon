@@ -26,13 +26,14 @@ Column names are case-sensitive. Every listed column is required, except `Monste
 
 | Worksheet | Columns | Meaning |
 | --- | --- | --- |
-| `Skills` | `Name` | Each row names a supported effect type: `Attack`, `Defend`, `Heal`, `Revive`, or `Flee`. |
+| `Skills` | `Name` | Each row names a supported effect type: `Attack`, `Magic`, `Defend`, `Heal`, `Revive`, or `Flee`. |
 | `Monsters` | `Name,Type,Level,Damage,Loot,Materials,Mat Count,Chance` | `Type` may be omitted or blank; set it to `Boss` for Boss enemies. Other type names are regular monsters. `Chance` may be omitted or blank; it is the 0–100 percent chance that the monster drops its listed loot and defaults to 100. `Mat Count` is the number of each listed Material awarded per defeat; it defaults to 1 and may be 0. Health and XP are each `Level × 10`; `Level` also sets the player level required to unlock the monster. `Damage` is dealt between surviving player attacks. `Loot` and `Materials` are item names from the corresponding tabs. The material-reference column may also be omitted or use the legacy header `Currency`. Separate multiple names with `;` or `|`. |
 | `Loot` | `Name,Slot,Value,Skill,Skill Effect,Rarity` | Loot item, equipment slot, numeric damage/value, optional skill name from `Skills`, numeric strength for that skill (leave blank if unused), and rarity (`Trash`, `Common`, `Uncommon`, `Rare`, `Epic`, `Legendary`, or `Mythic`). Leave `Slot` blank for an instant-use item. Monster defeats put referenced loot in the Bag. One item can occupy each slot in Equipment. |
 | `Materials` | `Name,Value,Uses` | Material item, its numeric value, and its intended uses. Monsters award each referenced Material on every defeat; sell these items in the Shop to add their `Value` to spendable Currency. |
 Valid `Skills.Name` values are:
 
 - `Attack`: a consumable hits the selected monster for the Loot row's `Skill Effect`; equipped loot increases damage by its `Value`.
+- `Magic`: deals damage like `Attack`; consumables hit the selected monster for the Loot row's `Skill Effect`, and equipped loot increases damage by its `Value`.
 - `Defend`: equipped loot adds its `Skill Effect` to player defense; a consumable applies that amount to the next incoming hit.
 - `Heal`: a consumable restores the Loot row's `Skill Effect` in HP, up to the 100 HP maximum.
 - `Revive`: a consumable item with this skill can be used after Game Over to restore full HP and resume the fight; its `Skill Effect` is ignored.
@@ -44,6 +45,7 @@ Example rows (use these as a starting point in your own sheet):
 Skills
 Name
 Attack
+Magic
 Defend
 Heal
 Revive
@@ -60,6 +62,7 @@ Feather,Hand,1,Attack,1,Common
 Spatula,Hand,3,Attack,2,Rare
 Sheet Pan,Offhand,5,Defend,2,Uncommon
 Damage Potion,,0,Attack,3,Mythic
+Magic Orb,,0,Magic,3,Epic
 
 Materials
 Name,Value,Uses
@@ -83,7 +86,7 @@ Each section above belongs on its own worksheet; do not include the section labe
 - Changing targets during a fight queues the new target; the current monster must be defeated first. Selecting the current monster again cancels the queued target.
 - The Shop keeps two distinct random slotless loot offers until purchased; loot with a defined `Slot` is never sold there. Buying an offer costs spendable Currency equal to that loot item's `Value`, adds it to the Bag, and replaces the purchased offer. Refreshing both offers costs 5 Currency. Materials awarded by monsters are stored in the Bag and add to the spendable Currency balance only when sold in the Shop.
 - In the Shop, the Player Stats section is hidden and Bag loot can be sold for its `Value`; selling Rare, Epic, Legendary, or Mythic loot requires confirmation. Bag rows show each item's Currency value separately from the Sell controls, and stacks of more than five can be sold all at once.
-- Loot with a blank `Slot` is a consumable. Using it consumes one item and applies its associated skill once: `Attack` hits the selected monster for the Loot item's `Skill Effect`, while `Defend` reduces the next incoming hit by its `Skill Effect`.
+- Loot with a blank `Slot` is a consumable. Using it consumes one item and applies its associated skill once: `Attack` and `Magic` hit the selected monster for the Loot item's `Skill Effect`, while `Defend` reduces the next incoming hit by its `Skill Effect`.
 - Slotless items in the Bag are also available as quick-use buttons in a single row beneath the Monster section.
 - A consumable with the `Heal` skill restores its `Effect` in HP, capped at 100. A consumable with the `Revive` skill restores full HP and resumes combat after Game Over; its `Effect` is ignored.
 - A consumable with the `Flee` skill ends the current fight and switches to Prepare. Returning to Fight leaves the target unselected until the player chooses a monster.

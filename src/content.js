@@ -2,6 +2,7 @@ import { parseCsv } from "./csv.js";
 
 const SKILL_ABILITIES = new Map([
   ["attack", "damage_flat"],
+  ["magic", "damage_flat"],
   ["defend", "defense_flat"],
   ["heal", "heal"],
   ["revive", "revive"],

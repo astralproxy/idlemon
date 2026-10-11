@@ -423,6 +423,30 @@ test("damage starts at one and equipped loot activates its skill", () => {
   assert.equal(getPlayerStats(state, content).damage, 6);
 });
 
+test("Magic gear and consumables deal damage like Attack", () => {
+  const magicContent = {
+    ...content,
+    skills: [...content.skills, { id: "magic", name: "Magic", effect: "damage_flat" }],
+    loot: [
+      ...content.loot,
+      { id: "magic-robe", name: "Magic Robe", skill: "Magic", slot: "Head", value: 4, effectValue: 0 },
+      { id: "magic-orb", name: "Magic Orb", skill: "Magic", slot: "", value: 0, effectValue: 2 },
+    ],
+  };
+  const state = createInitialState(magicContent);
+
+  state.lootInventory["magic-robe"] = 1;
+  equipLoot(state, magicContent, "magic-robe");
+  assert.equal(getPlayerStats(state, magicContent).damage, 5);
+
+  state.monsterHp = 5;
+  state.lootInventory["magic-orb"] = 1;
+  assert.equal(canUseLoot(state, magicContent, "magic-orb"), true);
+  assert.equal(useLoot(state, magicContent, "magic-orb"), true);
+  assert.equal(state.monsterHp, 3);
+  assert.equal(state.lootInventory["magic-orb"], undefined);
+});
+
 test("slotless loot applies its skill once and is consumed", () => {
   const consumableContent = {
     ...content,

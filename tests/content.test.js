@@ -4,9 +4,9 @@ import { loadGameContent } from "../src/content.js";
 import { parseCsv } from "../src/csv.js";
 
 const csvByCategory = {
-  skills: "Name\nAttack\nDefend\nHeal\nRevive\nFlee",
+  skills: "Name\nAttack\nDefend\nHeal\nRevive\nFlee\nMagic",
   monsters: "Name,Type,Level,Damage,Loot,Materials,Mat Count,Chance\nGreen,Normal,1,4,Feather; Spatula,Bottlecap,3,65\nBoss,Boss,2,10,,,,",
-  loot: "Name,Slot,Value,Skill,Skill Effect,Rarity\nFeather,Hand,1,Attack,1,Common\nSpatula,Hand,3,Attack,2,Rare\nSheet Pan,Offhand,5,Defend,2,Uncommon\nDamage Potion,,0,Attack,3,Mythic",
+  loot: "Name,Slot,Value,Skill,Skill Effect,Rarity\nFeather,Hand,1,Attack,1,Common\nSpatula,Hand,3,Attack,2,Rare\nSheet Pan,Offhand,5,Defend,2,Uncommon\nDamage Potion,,0,Attack,3,Mythic\nMagic Wand,Head,2,Magic,3,Rare",
   materials: "Name,Value,Uses\nBottlecap,1,Shop",
 };
 
@@ -57,7 +57,10 @@ test("loads and validates all published worksheet CSVs", async () => {
   assert.equal(content.skills[2].effect, "heal");
   assert.equal(content.skills[3].effect, "revive");
   assert.equal(content.skills[4].effect, "flee");
+  assert.equal(content.skills[5].effect, "damage_flat");
   assert.equal(content.loot[2].description, "Associated skill: Defend");
+  assert.equal(content.loot[4].skill, "Magic");
+  assert.equal(content.loot[4].effectValue, 3);
 });
 
 test("treats loot linked to a removed skill as collectible loot", async () => {
@@ -140,10 +143,9 @@ test("validates supported Skills names and numeric Loot effect strength", async 
     return { ok: true, text: async () => category === categoryName ? csv : csvByCategory[category] };
   });
 
-  await assert.rejects(
-    loadWithSheet("skills", "Name\nMagic"),
-    /Skill "Magic" is not supported/,
-  );
+  const magicContent = await loadWithSheet("skills", "Name\nMagic");
+  assert.equal(magicContent.skills[0].name, "Magic");
+  assert.equal(magicContent.skills[0].effect, "damage_flat");
   await assert.rejects(
     loadWithSheet("skills", "Name\nDamage"),
     /Skill "Damage" is not supported/,
