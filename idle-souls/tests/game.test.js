@@ -50,6 +50,7 @@ const content = {
   ],
   materials: [
     { id: "bottlecap", name: "Bottlecap", value: 1, uses: "Shop" },
+    { id: "bone", name: "Bone", value: 2, uses: "Shop" },
   ],
 };
 
@@ -113,7 +114,7 @@ test("debug loot grant adds an item to the bag and marks it as new", () => {
   assert.deepEqual(state.newLootIds, ["smoke-bomb"]);
 });
 
-test("selling loot removes one bag copy and adds its Value to Currency", () => {
+test("selling loot removes one bag copy and adds its Value to Souls", () => {
   const state = createInitialState(content);
   state.lootInventory.jelly = 2;
   state.newLootIds = ["jelly"];
@@ -140,7 +141,7 @@ test("selling all of a loot stack removes the whole stack and grants its total v
   assert.equal(sellLoot(state, content, "jelly", 6), false);
 });
 
-test("Material drops stay in the bag until sold for Currency in the Shop", () => {
+test("Material drops stay in the bag until sold for Souls in the Shop", () => {
   const state = createInitialState(content);
   advanceGame(state, content, 2);
   assert.equal(state.currencyInventory.bottlecap, 1);
@@ -162,6 +163,23 @@ test("defeating a monster grants its Mat Count for each listed Material", () => 
   advanceGame(state, materialCountContent, 2);
 
   assert.equal(state.currencyInventory.bottlecap, 4);
+});
+
+test("defeating a monster grants every comma-listed Material", () => {
+  const multipleMaterialsContent = {
+    ...content,
+    monsters: content.monsters.map((monster) => (
+      monster.id === "slime"
+        ? { ...monster, materialNames: ["Bottlecap", "Bone"], materialCount: 2 }
+        : monster
+    )),
+  };
+  const state = createInitialState(multipleMaterialsContent);
+
+  advanceGame(state, multipleMaterialsContent, 2);
+
+  assert.equal(state.currencyInventory.bottlecap, 2);
+  assert.equal(state.currencyInventory.bone, 2);
 });
 
 test("monster materials use an independent Mat Chance roll", () => {
@@ -224,7 +242,7 @@ test("pending monster selection persists and can be canceled by selecting the cu
   assert.equal(state.pendingTargetMonsterId, null);
 });
 
-test("Shop offers are unique and purchases spend Currency, grant loot, and replace only the bought offer", () => {
+test("Shop offers are unique and purchases spend Souls, grant loot, and replace only the bought offer", () => {
   const shopContent = {
     ...content,
     loot: content.loot.map((item) => item.slot === "" ? { ...item, value: 1 } : item),
@@ -331,7 +349,7 @@ test("saved target is reassigned when its monster is removed from the sheet", ()
   assert.equal(restored.xp, state.xp);
 });
 
-test("refreshing the Shop costs five Currency and replaces both offers", () => {
+test("refreshing the Shop costs five Souls and replaces both offers", () => {
   const state = createInitialState(content);
   const oldOffers = [...state.shopOffers];
   state.shopUnlocked = true;
@@ -361,9 +379,10 @@ test("defeating a Boss unlocks the Shop and pauses until a different monster is 
   assert.equal(buyShopItem(state, bossContent, 0), false);
 
   selectMonster(state, bossContent, "boss");
-  advanceGame(state, bossContent, 1);
+  advanceGame(state, bossContent, 3);
   assert.equal(state.kills.boss, 1);
   assert.equal(state.shopUnlocked, true);
+  assert.equal(state.bossShopHintDismissed, false);
   assert.equal(state.awaitingMonsterSelection, true);
   assert.equal(state.activeTab, "fight");
   assert.equal(state.prepareViewed, false);
@@ -377,17 +396,33 @@ test("defeating a Boss unlocks the Shop and pauses until a different monster is 
   const pausedSave = parseSavedState(JSON.stringify(state), bossContent);
   assert.equal(pausedSave.activeTab, "fight");
   assert.equal(pausedSave.awaitingMonsterSelection, true);
-  assert.throws(() => selectMonster(state, bossContent, "boss"), /different monster/);
+  assert.throws(() => selectMonster(state, bossContent, "boss"), /already been defeated/);
 
   selectMonster(state, bossContent, "slime");
   assert.equal(state.awaitingMonsterSelection, false);
   assert.equal(state.activeTab, "fight");
   assert.equal(state.monsterHp, 2);
+  assert.throws(() => selectMonster(state, bossContent, "boss"), /already been defeated/);
 
   const restored = parseSavedState(JSON.stringify(state), bossContent);
   assert.equal(restored.shopUnlocked, true);
+  assert.equal(restored.shopVisited, false);
+  assert.equal(restored.bossShopHintDismissed, false);
   assert.equal(restored.awaitingMonsterSelection, false);
   assert.deepEqual(restored.shopOffers, state.shopOffers);
+
+  const dismissedHintSave = parseSavedState(
+    JSON.stringify({ ...state, bossShopHintDismissed: true }),
+    bossContent,
+  );
+  assert.equal(dismissedHintSave.bossShopHintDismissed, true);
+
+  const shopVisitSave = parseSavedState(
+    JSON.stringify({ ...state, activeTab: "prepare", shopVisited: true }),
+    bossContent,
+  );
+  assert.equal(shopVisitSave.shopUnlocked, true);
+  assert.equal(shopVisitSave.shopVisited, true);
 });
 
 test("repairs saved Boss defeat health state instead of blocking startup", () => {
@@ -445,6 +480,71 @@ test("damage starts at one and equipped loot activates its skill", () => {
   assert.equal(state.gear.Hand, undefined);
   assert.equal(state.lootInventory.feather, 1);
   assert.equal(getPlayerStats(state, content).damage, 6);
+});
+
+test("equipping Two-Hand returns Offhand gear to the Bag and blocks Offhand equipment", () => {
+  const twoHandContent = {
+    ...content,
+    loot: [
+      ...content.loot,
+      { id: "greatsword", name: "Greatsword", skill: "Attack", slot: "Two-Hand", value: 8, effectValue: 0 },
+    ],
+  };
+  const state = createInitialState(twoHandContent);
+  state.lootInventory.pan = 1;
+  state.lootInventory.greatsword = 1;
+  equipLoot(state, twoHandContent, "pan");
+
+  assert.equal(state.gear.Offhand, "pan");
+  equipLoot(state, twoHandContent, "greatsword");
+  assert.equal(state.gear.Hand, "greatsword");
+  assert.equal(state.gear.Offhand, undefined);
+  assert.equal(state.lootInventory.pan, 1);
+  assert.throws(
+    () => equipLoot(state, twoHandContent, "pan"),
+    /Offhand equipment cannot be used while a Two-Hand item is equipped/,
+  );
+
+  unequipLoot(state, twoHandContent, "Hand");
+  assert.equal(state.gear.Hand, undefined);
+  assert.equal(equipLoot(state, twoHandContent, "pan"), true);
+  assert.equal(state.gear.Offhand, "pan");
+});
+
+test("loading a save with Two-Hand and Offhand gear returns Offhand to the Bag", () => {
+  const twoHandContent = {
+    ...content,
+    loot: [
+      ...content.loot,
+      { id: "greatsword", name: "Greatsword", skill: "Attack", slot: "Two-Hand", value: 8, effectValue: 0 },
+    ],
+  };
+  const state = createInitialState(twoHandContent);
+  state.gear.Offhand = "pan";
+  state.gear["Two-Hand"] = "greatsword";
+
+  const restored = parseSavedState(JSON.stringify(state), twoHandContent);
+  assert.equal(restored.gear.Offhand, undefined);
+  assert.equal(restored.gear.Hand, "greatsword");
+  assert.equal(restored.lootInventory.pan, 1);
+});
+
+test("loading legacy Hand and Two-Hand equipment keeps Two-Hand in Hand", () => {
+  const twoHandContent = {
+    ...content,
+    loot: [
+      ...content.loot,
+      { id: "greatsword", name: "Greatsword", skill: "Attack", slot: "Two-Hand", value: 8, effectValue: 0 },
+    ],
+  };
+  const state = createInitialState(twoHandContent);
+  state.gear.Hand = "jelly";
+  state.gear["Two-Hand"] = "greatsword";
+
+  const restored = parseSavedState(JSON.stringify(state), twoHandContent);
+  assert.equal(restored.gear.Hand, "greatsword");
+  assert.equal(restored.gear["Two-Hand"], undefined);
+  assert.equal(restored.lootInventory.jelly, 1);
 });
 
 test("Magic gear and consumables deal damage like Attack", () => {

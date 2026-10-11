@@ -23,8 +23,8 @@ function slug(value) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-function references(value) {
-  return value.trim() === "" ? [] : value.split(/[;|]/).map((reference) => reference.trim()).filter(Boolean);
+function references(value, separator = /[;|]/) {
+  return value.trim() === "" ? [] : value.split(separator).map((reference) => reference.trim()).filter(Boolean);
 }
 
 const SCHEMAS = {
@@ -118,7 +118,7 @@ function parseMonster(row) {
     materialCount: row["Mat Count"]?.trim() ? integer(row["Mat Count"], "Mat Count", 0) : 1,
     materialChance: row["Mat Chance"]?.trim() ? percentage(row["Mat Chance"], "Mat Chance") : 100,
     lootNames: references(row.Loot),
-    materialNames: references(row.Materials ?? row.Currency ?? ""),
+    materialNames: references(row.Materials ?? row.Currency ?? "", /[;,|]/),
   };
 }
 

@@ -216,6 +216,8 @@ export function createInitialState(content, now = Date.now()) {
     activeTab: "fight",
     awaitingMonsterSelection: false,
     shopUnlocked: false,
+    shopVisited: false,
+    bossShopHintDismissed: false,
     prepareViewed: false,
     lastLootCheck: null,
     shopOffers: createShopOffers(content),
@@ -281,8 +283,12 @@ export function parseSavedState(serialized, content) {
   const shopUnlocked = state.shopUnlocked
     ?? (activeTab === "shop"
       || content.monsters.some((monster) => monster.type.toLowerCase() === "boss" && (state.kills?.[monster.id] ?? 0) > 0));
+  const shopVisited = state.shopVisited ?? activeTab === "shop";
+  const bossShopHintDismissed = state.bossShopHintDismissed ?? false;
   if (typeof awaitingMonsterSelection !== "boolean"
-      || typeof shopUnlocked !== "boolean") {
+      || typeof shopUnlocked !== "boolean"
+      || typeof shopVisited !== "boolean"
+      || typeof bossShopHintDismissed !== "boolean") {
     throw new Error("The saved Boss progression is invalid.");
   }
   const prepareViewed = state.prepareViewed ?? false;
@@ -355,22 +361,42 @@ export function parseSavedState(serialized, content) {
   if (state.gear !== undefined && (!state.gear || typeof state.gear !== "object" || Array.isArray(state.gear))) {
     throw new Error("The saved gear data is invalid.");
   }
-  const gear = { ...(state.gear ?? {}) };
-  for (const [slot, lootId] of Object.entries(gear)) {
+  const gear = {};
+  for (const [savedSlot, lootId] of Object.entries(state.gear ?? {})) {
     const item = content.loot.find((loot) => loot.id === lootId);
     if (!item) {
-      delete gear[slot];
-    } else if (item.slot !== slot) {
-      lootInventory[item.id] = (lootInventory[item.id] ?? 0) + 1;
-      delete gear[slot];
+      continue;
     }
+    const slot = savedSlot === "Two-Hand" ? "Hand" : savedSlot;
+    const itemGearSlot = item.slot === "Two-Hand" ? "Hand" : item.slot;
+    if (itemGearSlot !== slot) {
+      lootInventory[item.id] = (lootInventory[item.id] ?? 0) + 1;
+      continue;
+    }
+    const existingItem = content.loot.find((loot) => loot.id === gear[slot]);
+    if (existingItem) {
+      if (item.slot === "Two-Hand" && existingItem.slot !== "Two-Hand") {
+        lootInventory[existingItem.id] = (lootInventory[existingItem.id] ?? 0) + 1;
+        gear[slot] = item.id;
+      } else {
+        lootInventory[item.id] = (lootInventory[item.id] ?? 0) + 1;
+      }
+    } else {
+      gear[slot] = item.id;
+    }
+  }
+  const handItem = content.loot.find((loot) => loot.id === gear.Hand);
+  if (handItem?.slot === "Two-Hand" && gear.Offhand) {
+    lootInventory[gear.Offhand] = (lootInventory[gear.Offhand] ?? 0) + 1;
+    delete gear.Offhand;
+    recoveryWarnings.push("Returned saved Offhand equipment to the Bag because a Two-Hand item occupies the Hand slot.");
   }
   const currencyInventory = pruneCountMap(state.currencyInventory, new Set(content.materials.map((item) => item.id)), "materials");
   const currencyBalance = state.currencyBalance ?? content.materials.reduce((total, material) => (
     total + material.value * (currencyInventory[material.id] ?? 0)
   ), 0);
   if (!isNonNegativeNumber(currencyBalance) || currencyBalance > 1_000_000_000_000) {
-    throw new Error("The saved Currency balance is invalid.");
+    throw new Error("The saved Souls balance is invalid.");
   }
   let shopOffers = state.shopOffers;
   if (!Array.isArray(shopOffers)
@@ -402,6 +428,8 @@ export function parseSavedState(serialized, content) {
     activeTab,
     awaitingMonsterSelection,
     shopUnlocked,
+    shopVisited,
+    bossShopHintDismissed,
     prepareViewed,
     shopOffers,
     newLootIds: repairedNewLootIds,
@@ -486,6 +514,11 @@ export function getPlayerStats(state, content) {
   };
 }
 
+export function isTwoHandEquipped(state, content) {
+  const handItem = content.loot.find((loot) => loot.id === state.gear?.Hand);
+  return handItem?.slot === "Two-Hand";
+}
+
 export function equipLoot(state, content, lootId) {
   const item = content.loot.find((loot) => loot.id === lootId);
   if (!item) {
@@ -495,19 +528,28 @@ export function equipLoot(state, content, lootId) {
   if (owned < 1) {
     throw new Error("That item is not in your bag.");
   }
+  if (item.slot === "Offhand" && isTwoHandEquipped(state, content)) {
+    throw new Error("Offhand equipment cannot be used while a Two-Hand item is equipped.");
+  }
 
-  const previousId = state.gear[item.slot];
+  const slot = item.slot === "Two-Hand" ? "Hand" : item.slot;
+  const previousId = state.gear[slot];
   if (previousId === item.id) {
     return false;
   }
   if (previousId) {
     state.lootInventory[previousId] = (state.lootInventory[previousId] ?? 0) + 1;
   }
+  if (item.slot === "Two-Hand" && state.gear.Offhand) {
+    const offhandId = state.gear.Offhand;
+    state.lootInventory[offhandId] = (state.lootInventory[offhandId] ?? 0) + 1;
+    delete state.gear.Offhand;
+  }
   state.lootInventory[item.id] = owned - 1;
   if (state.lootInventory[item.id] === 0) {
     delete state.lootInventory[item.id];
   }
-  state.gear[item.slot] = item.id;
+  state.gear[slot] = item.id;
   return true;
 }
 
@@ -516,7 +558,10 @@ export function unequipLoot(state, content, slot) {
   if (!lootId) {
     return false;
   }
-  if (!content.loot.some((item) => item.id === lootId && item.slot === slot)) {
+  if (!content.loot.some((item) => (
+    item.id === lootId
+    && (item.slot === "Two-Hand" ? "Hand" : item.slot) === slot
+  ))) {
     throw new Error("The equipped item no longer matches this gear slot.");
   }
   delete state.gear[slot];
@@ -650,6 +695,9 @@ export function selectMonster(state, content, monsterId) {
   if (!monster || monster.unlock_level > state.level) {
     throw new Error("That monster is not unlocked.");
   }
+  if (monster.type.toLowerCase() === "boss" && (state.kills[monster.id] ?? 0) > 0) {
+    throw new Error("That Boss has already been defeated.");
+  }
   if (state.awaitingMonsterSelection && state.targetMonsterId && monster.id === state.targetMonsterId) {
     throw new Error("Choose a different monster after defeating a Boss.");
   }
@@ -746,6 +794,8 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
       grantKillRewards(state, content, target, random);
       if (target.type.toLowerCase() === "boss") {
         state.shopUnlocked = true;
+        state.shopVisited = false;
+        state.bossShopHintDismissed = false;
         state.awaitingMonsterSelection = true;
         state.pendingTargetMonsterId = null;
         state.prepareViewed = false;

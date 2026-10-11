@@ -506,6 +506,10 @@ h3 {
   animation: shop-hint-marquee 1.6s linear infinite;
 }
 
+.boss-shop-hint[hidden] {
+  display: none;
+}
+
 @keyframes shop-hint-marquee {
   to {
     background-position:
@@ -602,6 +606,10 @@ select {
   border-radius: 9px;
   background: var(--surface-raised);
   color: inherit;
+}
+
+option.boss-defeated {
+  text-decoration: line-through;
 }
 
 select:focus-visible,
@@ -811,6 +819,10 @@ button:focus-visible {
   grid-template-columns: minmax(72px, 0.65fr) minmax(0, 1.35fr) auto;
   align-items: center;
   gap: 10px;
+}
+
+.gear-item.is-disabled {
+  opacity: 0.55;
 }
 
 .gear-slot {
