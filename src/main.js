@@ -11,6 +11,7 @@ import {
   experienceForNextLevel,
   getPlayerMaxHp,
   getPlayerStats,
+  isTwoHandEquipped,
   MAX_OFFLINE_SECONDS,
   parseSavedState,
   refreshShop,
@@ -66,6 +67,7 @@ const elements = {
   monsterSection: document.querySelector("#monster-section"),
   activeMonsterCard: document.querySelector("#active-monster-card"),
   bossKilledCard: document.querySelector("#boss-killed-card"),
+  bossShopHint: document.querySelector(".boss-shop-hint"),
   bossKilledName: document.querySelector("#boss-killed-name"),
   bossKilledReward: document.querySelector("#boss-killed-reward"),
   prepareMonster: document.querySelector("#prepare-monster"),
@@ -278,13 +280,18 @@ function render() {
     const option = document.createElement("option");
     option.value = monster.id;
     const isPendingTarget = monster.id === state.pendingTargetMonsterId;
+    const isDefeatedBoss = monster.type.toLowerCase() === "boss" && (state.kills[monster.id] ?? 0) > 0;
     const displayName = monsterDisplayName(monster);
     const monsterLabel = monster.unlock_level <= state.level
       ? `${displayName} (LVL ${monster.level})`
       : `${displayName} (Unlocks at P-LVL ${monster.unlock_level})`;
     option.textContent = isPendingTarget ? `${monsterLabel} (after current monster)` : monsterLabel;
-    option.disabled = monster.unlock_level > state.level
+    option.disabled = isDefeatedBoss
+      || monster.unlock_level > state.level
       || (state.awaitingMonsterSelection && monster.id === state.targetMonsterId);
+    if (isDefeatedBoss) {
+      option.classList.add("boss-defeated");
+    }
     option.selected = state.awaitingMonsterSelection
       ? false
       : monster.id === (state.pendingTargetMonsterId ?? state.targetMonsterId);
@@ -310,16 +317,33 @@ function render() {
       ...lootRewards,
       ...(target.materialNames ?? target.currencyNames ?? []),
     ];
-    const bossRewards = [
-      ...lootRewards,
-      ...(target.materialNames ?? target.currencyNames ?? []).map(
-        (name) => `${numberFormat.format(target.materialCount ?? 1)} ${name}`,
-      ),
-    ];
+    const materialRewards = (target.materialNames ?? target.currencyNames ?? []).map(
+      (name) => `${numberFormat.format(target.materialCount ?? 1)} ${name}`,
+    );
     elements.monsterLevel.textContent = `Level ${target.level}`;
     elements.bossKilledName.textContent = target.name;
-    const bossRewardsText = bossRewards.length > 0 ? `\n• ${bossRewards.join("\n• ")}` : "";
-    elements.bossKilledReward.textContent = `Rewards: ${numberFormat.format(target.xp)} XP${bossRewardsText}`;
+    elements.bossKilledReward.replaceChildren(
+      document.createTextNode(`Rewards: ${numberFormat.format(target.xp)} XP`),
+    );
+    for (const rewardName of lootRewards) {
+      const item = content.loot.find((lootItem) => lootItem.name === rewardName);
+      elements.bossKilledReward.append(document.createElement("br"));
+      if (item) {
+        elements.bossKilledReward.append(createTextElement(
+          "span",
+          `loot-rarity rarity-${item.rarity.toLowerCase()}`,
+          rewardName,
+        ));
+      } else {
+        elements.bossKilledReward.append(document.createTextNode(rewardName));
+      }
+    }
+    for (const reward of materialRewards) {
+      elements.bossKilledReward.append(
+        document.createElement("br"),
+        document.createTextNode(reward),
+      );
+    }
     elements.monsterName.textContent = monsterDisplayName(target);
     elements.monsterHealth.textContent = `${numberFormat.format(Math.max(0, state.monsterHp))} / ${numberFormat.format(target.health)}`;
     const healthPercent = Math.max(0, Math.min(100, (state.monsterHp / target.health) * 100));
@@ -362,7 +386,11 @@ function render() {
   renderList(elements.gearList, GEAR_SLOTS, "", (slot) => {
     const item = content.loot.find((loot) => loot.id === state.gear[slot]);
     const row = document.createElement("article");
-    row.className = "list-item gear-item";
+    const offhandDisabled = slot === "Offhand" && isTwoHandEquipped(state, content);
+    row.className = `list-item gear-item${offhandDisabled ? " is-disabled" : ""}`;
+    if (offhandDisabled) {
+      row.setAttribute("aria-disabled", "true");
+    }
     row.append(
       createTextElement("strong", "gear-slot", slot),
     );
@@ -383,6 +411,9 @@ function render() {
         saveState();
       });
       row.append(itemColumn, button);
+    } else if (offhandDisabled) {
+      itemColumn.append(createTextElement("span", "muted", "Disabled by Two-Hand item"));
+      row.append(itemColumn);
     } else {
       itemColumn.append(createTextElement("span", "muted", "Empty"));
       row.append(itemColumn);
@@ -450,7 +481,13 @@ function render() {
     button.type = "button";
     button.className = "button";
     button.textContent = isShop ? "Sell" : item.slot ? "Equip" : "Use";
-    button.disabled = !isShop && item.slot === "" && !canUseLoot(state, content, item.id);
+    button.disabled = !isShop && (
+      (item.slot === "" && !canUseLoot(state, content, item.id))
+      || (item.slot === "Offhand" && isTwoHandEquipped(state, content))
+    );
+    if (item.slot === "Offhand" && isTwoHandEquipped(state, content)) {
+      button.title = "Unequip the Two-Hand item before equipping Offhand gear.";
+    }
     const sellLootCount = async (count) => {
       try {
         const rarityLevels = {
@@ -473,8 +510,8 @@ function render() {
         }
         const totalValue = item.value * count;
         setStatus(count > 1
-          ? `Sold ${count} ${item.name} for ${numberFormat.format(totalValue)} Currency.`
-          : `${item.name} sold for ${numberFormat.format(totalValue)} Currency.`);
+          ? `Sold ${count} ${item.name} for ${numberFormat.format(totalValue)} Souls.`
+          : `${item.name} sold for ${numberFormat.format(totalValue)} Souls.`);
         render();
         saveState();
       } catch (error) {
@@ -507,6 +544,28 @@ function render() {
     if (isShop) {
       const actions = createTextElement("div", "bag-sale-actions", "");
       actions.append(createTextElement("span", "bag-sale-value", `Value: ${numberFormat.format(item.value)}`));
+      if (item.slot) {
+        const equipButton = document.createElement("button");
+        equipButton.type = "button";
+        equipButton.className = "button secondary";
+        equipButton.textContent = "Equip";
+        equipButton.disabled = item.slot === "Offhand" && isTwoHandEquipped(state, content);
+        if (equipButton.disabled) {
+          equipButton.title = "Unequip the Two-Hand item before equipping Offhand gear.";
+        }
+        equipButton.addEventListener("click", () => {
+          try {
+            equipLoot(state, content, item.id);
+            setStatus(`${item.name} equipped.`);
+            render();
+            saveState();
+          } catch (error) {
+            setStatus(`Could not equip ${item.name}: ${error.message}`);
+            render();
+          }
+        });
+        actions.append(equipButton);
+      }
       actions.append(button);
       const count = state.lootInventory[item.id];
       if (count > 5) {
@@ -558,8 +617,8 @@ function render() {
             }
             const totalValue = item.value * count;
             setStatus(count > 1
-              ? `Sold ${count} ${item.name} for ${numberFormat.format(totalValue)} Currency.`
-              : `${item.name} sold for ${numberFormat.format(totalValue)} Currency.`);
+              ? `Sold ${count} ${item.name} for ${numberFormat.format(totalValue)} Souls.`
+              : `${item.name} sold for ${numberFormat.format(totalValue)} Souls.`);
             render();
             saveState();
           } catch (error) {
@@ -613,7 +672,7 @@ function renderShop() {
     button.addEventListener("click", () => {
       try {
         if (!buyShopItem(state, content, offerIndex)) {
-          setStatus(`Not enough Currency to buy ${item.name}.`);
+          setStatus(`Not enough Souls to buy ${item.name}.`);
           return;
         }
         setStatus(`${item.name} added to your Bag.`);
@@ -632,10 +691,10 @@ function renderShop() {
 elements.refreshShop.addEventListener("click", () => {
   try {
     if (!refreshShop(state, content)) {
-      setStatus(`Refreshing the Shop costs ${SHOP_REFRESH_COST} Currency.`);
+      setStatus(`Refreshing the Shop costs ${SHOP_REFRESH_COST} Souls.`);
       return;
     }
-    setStatus(`Shop offers refreshed for ${SHOP_REFRESH_COST} Currency.`);
+    setStatus(`Shop offers refreshed for ${SHOP_REFRESH_COST} Souls.`);
     render();
     saveState();
   } catch (error) {
@@ -728,6 +787,7 @@ function renderCombatTab() {
     tab.tabIndex = selected ? 0 : -1;
   }
   elements.monsterSection.hidden = state.activeTab !== "fight";
+  elements.bossShopHint.hidden = state.bossShopHintDismissed;
   elements.prepareMonster.hidden = state.activeTab !== "prepare" || state.awaitingMonsterSelection;
   elements.shopSection.hidden = state.activeTab !== "shop";
 }
@@ -745,12 +805,20 @@ function selectCombatTab(tabName) {
   if (tabName === previousTab) {
     return;
   }
-  if (previousTab === "shop" && state.shopUnlocked
-      && !window.confirm("Leaving the Shop will lock it. You cannot return until another Boss is defeated. Leave the Shop?")) {
+  if (previousTab === "shop") {
+    state.shopVisited = true;
+  }
+  if (tabName === "fight" && state.shopVisited
+      && !window.confirm("Returning to Fight will lock the Shop until another Boss is defeated. Return to Fight?")) {
     return;
   }
-  if (previousTab === "shop") {
+  if (tabName === "fight" && state.shopVisited) {
     state.shopUnlocked = false;
+    state.shopVisited = false;
+    state.bossShopHintDismissed = true;
+  }
+  if (tabName === "shop") {
+    state.shopVisited = true;
   }
   if (tabName === "prepare") {
     state.prepareViewed = true;

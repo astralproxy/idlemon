@@ -5,9 +5,9 @@ import { parseCsv } from "../src/csv.js";
 
 const csvByCategory = {
   skills: "Name\nAttack\nDefend\nHeal\nRevive\nFlee\nMagic",
-  monsters: "Name,Type,Level,HP,Damage,Loot,Materials,Mat Count,Loot Chance,Mat Chance\nGreen,Normal,1,15,4,Feather; Spatula,Bottlecap,3,65,75\nBoss,Boss,2,25,10,,,,,",
+  monsters: "Name,Type,Level,HP,Damage,Loot,Materials,Mat Count,Loot Chance,Mat Chance\nGreen,Normal,1,15,4,Feather; Spatula,\"Bottlecap, Bone\",3,65,75\nBoss,Boss,2,25,10,,,,,",
   loot: "Name,Slot,Value,Skill,Skill Effect,Rarity\nFeather,Hand,1,Attack,1,Common\nSpatula,Hand,3,Attack,2,Rare\nSheet Pan,Offhand,5,Defend,2,Uncommon\nDamage Potion,,0,Attack,3,Mythic\nMagic Wand,Head,2,Magic,3,Rare\nGuard Charm,Chest,0,Defend,25%,Rare\nHealing Potion,,0,Heal,25%,Uncommon",
-  materials: "Name,Value,Uses\nBottlecap,1,Shop",
+  materials: "Name,Value,Uses\nBottlecap,1,Shop\nBone,2,Shop",
 };
 
 test("parses quoted commas, escaped quotes, and line breaks", () => {
@@ -47,7 +47,7 @@ test("loads and validates all published worksheet CSVs", async () => {
   assert.equal(content.monsters[0].materialChance, 75);
   assert.equal(content.monsters[0].materialCount, 3);
   assert.deepEqual(content.monsters[0].lootNames, ["Feather", "Spatula"]);
-  assert.deepEqual(content.monsters[0].materialNames, ["Bottlecap"]);
+  assert.deepEqual(content.monsters[0].materialNames, ["Bottlecap", "Bone"]);
   assert.equal(content.loot[0].value, 1);
   assert.equal(content.loot[0].effectValue, 1);
   assert.equal(content.loot[0].slot, "Hand");
@@ -143,8 +143,8 @@ test("accepts a Monsters sheet without a Type column and defaults Type to blank"
     const category = new URL(url).pathname.slice(1);
     const text = category === "monsters"
       ? csvByCategory.monsters.replace(
-        "Name,Type,Level,HP,Damage,Loot,Materials,Mat Count,Loot Chance,Mat Chance\nGreen,Normal,1,15,4,Feather; Spatula,Bottlecap,3,65,75\nBoss,Boss,2,25,10,,,,,",
-        "Name,Level,HP,Damage,Loot,Materials,Mat Count,Loot Chance,Mat Chance\nGreen,1,15,4,Feather; Spatula,Bottlecap,3,65,75\nBoss,2,25,10,,,1,,",
+        "Name,Type,Level,HP,Damage,Loot,Materials,Mat Count,Loot Chance,Mat Chance\nGreen,Normal,1,15,4,Feather; Spatula,\"Bottlecap, Bone\",3,65,75\nBoss,Boss,2,25,10,,,,,",
+        "Name,Level,HP,Damage,Loot,Materials,Mat Count,Loot Chance,Mat Chance\nGreen,1,15,4,Feather; Spatula,\"Bottlecap, Bone\",3,65,75\nBoss,2,25,10,,,1,,",
       )
       : csvByCategory[category];
     return { ok: true, text: async () => text };
@@ -156,6 +156,7 @@ test("accepts a Monsters sheet without a Type column and defaults Type to blank"
   assert.equal(content.monsters[0].lootChance, 65);
   assert.equal(content.monsters[0].materialChance, 75);
   assert.equal(content.monsters[0].materialCount, 3);
+  assert.deepEqual(content.monsters[0].materialNames, ["Bottlecap", "Bone"]);
 });
 
 test("validates supported Skills names and numeric Loot effect strength", async () => {
