@@ -115,11 +115,11 @@ const elements = {
   bagShopNote: document.querySelector("#bag-shop-note"),
   bagItemsTab: document.querySelector("#bag-items-tab"),
   bagMaterialsTab: document.querySelector("#bag-materials-tab"),
-  bagArmorPanel: document.querySelector("#bag-armor-panel"),
   bagItemsPanel: document.querySelector("#bag-items-panel"),
+  bagArmorPanel: document.querySelector("#bag-armor-panel"),
   bagMaterialsPanel: document.querySelector("#bag-materials-panel"),
-  bagArmorList: document.querySelector("#bag-armor-list"),
   bagItemsList: document.querySelector("#bag-items-list"),
+  bagArmorList: document.querySelector("#bag-armor-list"),
   bagMaterialsList: document.querySelector("#bag-materials-list"),
   gearToggle: document.querySelector("#gear-toggle"),
   gearContent: document.querySelector("#gear-content"),
@@ -146,6 +146,7 @@ let statusVersion = 0;
 let saveErrorShown = false;
 let resetting = false;
 let shopTooltipTimeout;
+let isMonsterSelectOpen = false;
 
 function showError(message) {
   elements.game.hidden = true;
@@ -218,6 +219,67 @@ function confirmLootSale(item, count = 1) {
   });
 }
 
+function populateMonsterSelect() {
+  elements.monsterSelect.replaceChildren();
+  if (state.awaitingMonsterSelection) {
+    const prompt = document.createElement("option");
+    prompt.value = "";
+    prompt.textContent = "Choose a monster...";
+    prompt.selected = true;
+    elements.monsterSelect.append(prompt);
+  }
+
+  // Find the index of the first undefeated Boss in the monster list
+  const undefeatedBossIndex = content.monsters.findIndex(
+    (monster) => monster.type.toLowerCase() === "boss" && (state.kills[monster.id] ?? 0) === 0
+  );
+
+  for (let index = 0; index < content.monsters.length; index += 1) {
+    const monster = content.monsters[index];
+    const option = document.createElement("option");
+    option.value = monster.id;
+
+    // Check if this monster is below the next undefeated Boss
+    const isObscured = undefeatedBossIndex !== -1 && index > undefeatedBossIndex;
+
+    if (isObscured) {
+      option.textContent = "??? (Beat boss to reveal)";
+      option.disabled = true;
+    } else {
+      const isPendingTarget = monster.id === state.pendingTargetMonsterId;
+      const isDefeatedBoss = monster.type.toLowerCase() === "boss" && (state.kills[monster.id] ?? 0) > 0;
+      const displayName = monsterDisplayName(monster);
+      const monsterLabel = monster.unlock_level <= state.level
+        ? `${displayName} (LVL ${monster.level})`
+        : `${displayName} (Unlocks at P-LVL ${monster.unlock_level})`;
+      option.textContent = isPendingTarget ? `${monsterLabel} (after current monster)` : monsterLabel;
+      option.disabled = isDefeatedBoss
+        || monster.unlock_level > state.level
+        || (state.awaitingMonsterSelection && monster.id === state.targetMonsterId);
+      if (isDefeatedBoss) {
+        option.classList.add("boss-defeated");
+      }
+    }
+
+    option.selected = state.awaitingMonsterSelection
+      ? false
+      : monster.id === (state.pendingTargetMonsterId ?? state.targetMonsterId);
+    elements.monsterSelect.append(option);
+  }
+
+  // for (const monster of content.monsters) {
+  //   const option = document.createElement("option");
+  //   option.value = monster.id;
+  //   const isDefeatedBoss = monster.type.toLowerCase() === "boss" && (state.kills[monster.id] ?? 0) > 0;
+  //   const displayName = monsterDisplayName(monster);
+  //   option.textContent = monster.unlock_level <= state.level
+  //     ? `${displayName} (LVL ${monster.level})`
+  //     : `${displayName} (Unlocks at P-LVL ${monster.unlock_level})`;
+  //   option.disabled = isDefeatedBoss || monster.unlock_level > state.level;
+  //   elements.monsterSelect.append(option);
+  // }
+}
+
 function render() {
   const stats = getPlayerStats(state, content);
   const xpNeeded = experienceForNextLevel(state.level);
@@ -265,55 +327,64 @@ function render() {
     elements.restoreKey.value = createRestoreKey(state);
   }
 
+  if (document.activeElement !== elements.monsterSelect) {
+    elements.monsterSelect.value = state.pendingTargetMonsterId ?? state.targetMonsterId ?? "";
+  }
   const target = content.monsters.find((monster) => monster.id === state.targetMonsterId);
   const availableMonsters = content.monsters.filter((monster) => monster.unlock_level <= state.level);
-  elements.monsterSelect.replaceChildren();
-  if (state.awaitingMonsterSelection) {
-    const prompt = document.createElement("option");
-    prompt.value = "";
-    prompt.textContent = target ? "Choose a different monster..." : "Choose a monster...";
-    prompt.disabled = Boolean(target);
-    prompt.selected = true;
-    elements.monsterSelect.append(prompt);
-  }
+
+  // v2... moved to populateMonsterSelect
+  // const target = content.monsters.find((monster) => monster.id === state.targetMonsterId);
+  // const availableMonsters = content.monsters.filter((monster) => monster.unlock_level <= state.level);
+  // elements.monsterSelect.replaceChildren();
+  // if (state.awaitingMonsterSelection) {
+  //   const prompt = document.createElement("option");
+  //   prompt.value = "";
+  //   prompt.textContent = target ? "Choose a different monster..." : "Choose a monster...";
+  //   prompt.disabled = Boolean(target);
+  //   prompt.selected = true;
+  //   elements.monsterSelect.append(prompt);
+  // }
   
-  // Find the index of the first undefeated Boss in the monster list
-  const undefeatedBossIndex = content.monsters.findIndex(
-    (monster) => monster.type.toLowerCase() === "boss" && (state.kills[monster.id] ?? 0) === 0
-  );
+  // // Find the index of the first undefeated Boss in the monster list
+  // const undefeatedBossIndex = content.monsters.findIndex(
+  //   (monster) => monster.type.toLowerCase() === "boss" && (state.kills[monster.id] ?? 0) === 0
+  // );
 
-  for (let index = 0; index < content.monsters.length; index += 1) {
-    const monster = content.monsters[index];
-    const option = document.createElement("option");
-    option.value = monster.id;
+  // for (let index = 0; index < content.monsters.length; index += 1) {
+  //   const monster = content.monsters[index];
+  //   const option = document.createElement("option");
+  //   option.value = monster.id;
 
-    // Check if this monster is below the next undefeated Boss
-    const isObscured = undefeatedBossIndex !== -1 && index > undefeatedBossIndex;
+  //   // Check if this monster is below the next undefeated Boss
+  //   const isObscured = undefeatedBossIndex !== -1 && index > undefeatedBossIndex;
 
-    if (isObscured) {
-      option.textContent = "??? (Beat boss to reveal)";
-      option.disabled = true;
-    } else {
-      const isPendingTarget = monster.id === state.pendingTargetMonsterId;
-      const isDefeatedBoss = monster.type.toLowerCase() === "boss" && (state.kills[monster.id] ?? 0) > 0;
-      const displayName = monsterDisplayName(monster);
-      const monsterLabel = monster.unlock_level <= state.level
-        ? `${displayName} (LVL ${monster.level})`
-        : `${displayName} (LVL ${monster.unlock_level})`;
-      option.textContent = isPendingTarget ? `${monsterLabel} (after current monster)` : monsterLabel;
-      option.disabled = isDefeatedBoss
-        || monster.unlock_level > state.level
-        || (state.awaitingMonsterSelection && monster.id === state.targetMonsterId);
-      if (isDefeatedBoss) {
-        option.classList.add("boss-defeated");
-      }
-    }
+  //   if (isObscured) {
+  //     option.textContent = "??? (Beat boss to reveal)";
+  //     option.disabled = true;
+  //   } else {
+  //     const isPendingTarget = monster.id === state.pendingTargetMonsterId;
+  //     const isDefeatedBoss = monster.type.toLowerCase() === "boss" && (state.kills[monster.id] ?? 0) > 0;
+  //     const displayName = monsterDisplayName(monster);
+  //     const monsterLabel = monster.unlock_level <= state.level
+  //       ? `${displayName} (LVL ${monster.level})`
+  //       : `${displayName} (LVL ${monster.unlock_level})`;
+  //     option.textContent = isPendingTarget ? `${monsterLabel} (after current monster)` : monsterLabel;
+  //     option.disabled = isDefeatedBoss
+  //       || monster.unlock_level > state.level
+  //       || (state.awaitingMonsterSelection && monster.id === state.targetMonsterId);
+  //     if (isDefeatedBoss) {
+  //       option.classList.add("boss-defeated");
+  //     }
+  //   }
 
-    option.selected = state.awaitingMonsterSelection
-      ? false
-      : monster.id === (state.pendingTargetMonsterId ?? state.targetMonsterId);
-    elements.monsterSelect.append(option);
-  }
+  //   option.selected = state.awaitingMonsterSelection
+  //     ? false
+  //     : monster.id === (state.pendingTargetMonsterId ?? state.targetMonsterId);
+  //   elements.monsterSelect.append(option);
+  // }
+
+  // v1...
   // for (const monster of content.monsters) {
   //   const option = document.createElement("option");
   //   option.value = monster.id;
@@ -796,8 +867,8 @@ function closeMenu() {
 
 function selectBagTab(tab) {
   const tabs = [
-    ["armor", elements.bagArmorTab, elements.bagArmorPanel],
     ["items", elements.bagItemsTab, elements.bagItemsPanel],
+    ["armor", elements.bagArmorTab, elements.bagArmorPanel],
     ["materials", elements.bagMaterialsTab, elements.bagMaterialsPanel],
   ];
   for (const [name, button, panel] of tabs) {
@@ -945,31 +1016,33 @@ for (const [tab, tabName] of combatTabs) {
   });
 }
 
-elements.bagArmorTab.addEventListener("click", () => selectBagTab("armor"));
+
 elements.bagItemsTab.addEventListener("click", () => selectBagTab("items"));
+elements.bagArmorTab.addEventListener("click", () => selectBagTab("armor"));
 elements.bagMaterialsTab.addEventListener("click", () => selectBagTab("materials"));
 const bagTabs = [
-  [elements.bagArmorTab, "armor"],
   [elements.bagItemsTab, "items"],
+  [elements.bagArmorTab, "armor"],
   [elements.bagMaterialsTab, "materials"],
 ];
-for (const [tab] of bagTabs) {
-  tab.addEventListener("keydown", (event) => {
-    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-      event.preventDefault();
-      const index = bagTabs.findIndex(([candidate]) => candidate === tab);
-      const direction = event.key === "ArrowRight" ? 1 : -1;
-      const next = bagTabs[(index + direction + bagTabs.length) % bagTabs.length];
-      selectBagTab(next[1]);
-      next[0].focus();
-    } else if (event.key === "Home" || event.key === "End") {
-      event.preventDefault();
-      const targetTab = event.key === "Home" ? bagTabs[0] : bagTabs[bagTabs.length - 1];
-      selectBagTab(targetTab[1]);
-      targetTab[0].focus();
-    }
-  });
-}
+/* Key events for bag navigation */
+// for (const [tab] of bagTabs) {
+//   tab.addEventListener("keydown", (event) => {
+//     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+//       event.preventDefault();
+//       const index = bagTabs.findIndex(([candidate]) => candidate === tab);
+//       const direction = event.key === "ArrowRight" ? 1 : -1;
+//       const next = bagTabs[(index + direction + bagTabs.length) % bagTabs.length];
+//       selectBagTab(next[1]);
+//       next[0].focus();
+//     } else if (event.key === "Home" || event.key === "End") {
+//       event.preventDefault();
+//       const targetTab = event.key === "Home" ? bagTabs[0] : bagTabs[bagTabs.length - 1];
+//       selectBagTab(targetTab[1]);
+//       targetTab[0].focus();
+//     }
+//   });
+// }
 
 function tick() {
   const now = Date.now();
@@ -1004,7 +1077,17 @@ function tick() {
   }
 }
 
+elements.monsterSelect.addEventListener("focus", () => {
+  isMonsterSelectOpen = true;
+});
+
+elements.monsterSelect.addEventListener("blur", () => {
+  isMonsterSelectOpen = false;
+  lastTickAt = Date.now();
+});
+
 elements.monsterSelect.addEventListener("change", () => {
+  isMonsterSelectOpen = false;
   if (!elements.monsterSelect.value) {
     return;
   }
@@ -1185,6 +1268,9 @@ async function startGame() {
       const remainingWarnings = startupWarnings.length - 2;
       setStatus(`${warningSummary}${remainingWarnings > 0 ? ` And ${remainingWarnings} more sheet issue(s) were repaired.` : ""}`);
     }
+
+    populateMonsterSelect();
+
     state.updatedAt = now;
     lastTickAt = now;
     renderCombatTab();
