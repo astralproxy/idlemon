@@ -1,4 +1,4 @@
-export const MAX_OFFLINE_SECONDS = 8 * 60 * 60;
+export const MAX_OFFLINE_SECONDS = 10; // don't let player log off instantly to avoid death
 export const SAVE_KEY = "idlemon-save-v1";
 export const SAVE_VERSION = 12;
 export const PLAYER_STARTING_MAX_HP = 400;
@@ -123,9 +123,14 @@ export function buyShopItem(state, content, offerIndex, random = Math.random) {
     return false;
   }
 
+  if (getTotalItemCount(state, item.id) >= 9) {
+    throw new Error("You already hold the maximum of 9 of this item.");
+  }
+
   state.currencyBalance = getCurrencyBalance(state, content) - item.value;
   state.lootInventory[item.id] = (state.lootInventory[item.id] ?? 0) + 1;
   markLootNew(state, item.id);
+
   const otherOffer = state.shopOffers[1 - offerIndex];
   state.shopOffers[offerIndex] = replacementOffer(
     content,
@@ -140,8 +145,17 @@ export function addLootToBag(state, content, lootId) {
   if (!item) {
     throw new Error("That loot item is not available.");
   }
+  if (getTotalItemCount(state, item.id) >= 9) {
+    throw new Error("You already hold the maximum of 9 of this item.");
+  }
   state.lootInventory[item.id] = (state.lootInventory[item.id] ?? 0) + 1;
   markLootNew(state, item.id);
+}
+
+function getTotalItemCount(state, lootId) {
+  const bagCount = state.lootInventory[lootId] ?? 0;
+  const equippedCount = Object.values(state.gear ?? {}).filter((id) => id === lootId).length;
+  return bagCount + equippedCount;
 }
 
 export function sellLoot(state, content, lootId, count = 1) {
@@ -495,8 +509,8 @@ export function getPlayerStats(state, content) {
   for (const lootId of Object.values(state.gear ?? {})) {
     const item = content.loot.find((loot) => loot.id === lootId);
     const skill = item && content.skills.find((candidate) => candidate.name === item.skill);
-    if (item && !["defense_flat", "flee", "heal", "revive"].includes(skill?.effect)) {
-      gearDamage += item.value;
+    if (item && ["damage_flat"].includes(skill?.effect)) {
+      gearDamage += item.effectValue;
     }
     if (skill?.effect === "defense_flat") {
       if (item.effectIsPercentage) {
@@ -512,6 +526,16 @@ export function getPlayerStats(state, content) {
     defensePercent: Math.min(100, bonuses.defense_percent),
     xpMultiplier: Math.max(0, 1 + bonuses.xp_multiplier),
   };
+}
+
+function addLootToInventory(state, lootId, count = 1) {
+  const current = state.lootInventory[lootId] ?? 0;
+  if (current >= 9) {
+    return false; // Bag is already at maximum capacity (9) for this item
+  }
+  state.lootInventory[lootId] = Math.min(9, current + count);
+  markLootNew(state, lootId);
+  return true;
 }
 
 export function isTwoHandEquipped(state, content) {
@@ -608,23 +632,60 @@ export function useLoot(state, content, lootId, random = Math.random) {
       ? maxHp * item.effectValue / 100
       : item.effectValue;
     state.hp = Math.min(maxHp, state.hp + healing);
-  } else if (skill.effect === "damage_flat") {
+  }
+  else if (skill.effect === "damage_flat")
+  {
+    // OLD WAY DIDN'T CHECK BOSSES
+    // const target = content.monsters.find((monster) => monster.id === state.targetMonsterId);
+    // if (!target || target.unlock_level > state.level) {
+    //   throw new Error("The selected monster is unavailable.");
+    // }
+    // state.monsterHp -= item.effectValue;
+    // if (state.monsterHp <= 0) {
+    //   grantKillRewards(state, content, target, random);
+    //   state.monsterHp = target.health;
+    // }
+
     const target = content.monsters.find((monster) => monster.id === state.targetMonsterId);
     if (!target || target.unlock_level > state.level) {
       throw new Error("The selected monster is unavailable.");
     }
     state.monsterHp -= item.effectValue;
     if (state.monsterHp <= 0) {
+      state.monsterHp = 0; // Lock at 0 so it renders empty
       grantKillRewards(state, content, target, random);
-      state.monsterHp = target.health;
+      
+      if (target.type.toLowerCase() === "boss") {
+        state.shopUnlocked = true;
+        state.shopVisited = false;
+        state.bossShopHintDismissed = false;
+        state.awaitingMonsterSelection = true;
+        state.pendingTargetMonsterId = null;
+        state.prepareViewed = false;
+        state.attackRemainder = 0;
+      }
+      // For regular monsters, if you want it to reset after an item kill, 
+      // you can let the next tick handle it or handle the pending switch:
+      else if (state.pendingTargetMonsterId) {
+        const nextTarget = content.monsters.find((monster) => monster.id === state.pendingTargetMonsterId);
+        state.targetMonsterId = nextTarget.id;
+        state.pendingTargetMonsterId = null;
+        state.monsterHp = nextTarget.health;
+      } else {
+        state.monsterHp = target.health;
+      }
     }
-  } else if (skill.effect === "defense_flat") {
+  }
+  else if (skill.effect === "defense_flat")
+  {
     if (item.effectIsPercentage) {
       state.nextHitDefensePercent = Math.min(100, (state.nextHitDefensePercent ?? 0) + item.effectValue);
     } else {
       state.nextHitDefense += item.effectValue;
     }
-  } else {
+  }
+  else
+  {
     throw new Error(`The "${skill.name}" skill cannot be used from an item.`);
   }
 
@@ -743,8 +804,10 @@ function grantKillRewards(state, content, monster, random = Math.random) {
     if (dropped) {
       for (const name of monster.lootNames) {
         const item = content.loot.find((loot) => loot.name === name);
-        state.lootInventory[item.id] = (state.lootInventory[item.id] ?? 0) + 1;
-        markLootNew(state, item.id);
+        if (item && getTotalItemCount(state, item.id) < 9) {
+          state.lootInventory[item.id] = (state.lootInventory[item.id] ?? 0) + 1;
+          markLootNew(state, item.id);
+        }
       }
     }
   } else {
@@ -787,11 +850,36 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
     throw new Error("The selected monster is unavailable in the current sheet.");
   }
 
-  for (let index = 0; index < attacks; index += 1) {
+  for (let index = 0; index < attacks; index += 1)
+  {
+    // Reload the monster and skip attacking on this tick so it starts at full health
+    if (state.monsterHp === -1) {
+      state.monsterHp = target.health;
+      continue; 
+    }
+
+    // Wait a tick (monster stays at 0 HP for this entire tick)
+    if (state.monsterHp === 0) {
+      if (state.awaitingMonsterSelection) {
+        break;
+      }
+      if (state.pendingTargetMonsterId) {
+        target = content.monsters.find((monster) => monster.id === state.pendingTargetMonsterId);
+        state.targetMonsterId = target.id;
+        state.pendingTargetMonsterId = null;
+      }
+      state.monsterHp = -1; // Move to reload state for the following tick
+      break; // Pause combat for this tick while showing 0 HP
+    }
+    
     const stats = getPlayerStats(state, content);
     state.monsterHp -= stats.damage;
+
+    // Fatal hit
     if (state.monsterHp <= 0) {
+      state.monsterHp = 0; // Lock health at 0 so it renders empty for the death tick
       grantKillRewards(state, content, target, random);
+      
       if (target.type.toLowerCase() === "boss") {
         state.shopUnlocked = true;
         state.shopVisited = false;
@@ -799,20 +887,40 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
         state.awaitingMonsterSelection = true;
         state.pendingTargetMonsterId = null;
         state.prepareViewed = false;
-        state.monsterHp = 0;
+        state.attackRemainder = 0;
+      }
+      
+      break; // Stop further attacks so the 0 HP state is displayed
+    }
+/*    state.monsterHp -= stats.damage;
+    if (state.monsterHp <= 0) {
+      state.monsterHp = 0; // explicitly set to 0 to avoid over-kill
+
+      grantKillRewards(state, content, target, random);
+      
+      if (target.type.toLowerCase() === "boss") {
+        state.shopUnlocked = true;
+        state.shopVisited = false;
+        state.bossShopHintDismissed = false;
+        state.awaitingMonsterSelection = true;
+        state.pendingTargetMonsterId = null;
+        state.prepareViewed = false;
         state.attackRemainder = 0;
         break;
       }
-      if (state.pendingTargetMonsterId) {
+      else if (state.pendingTargetMonsterId) {
         target = content.monsters.find((monster) => monster.id === state.pendingTargetMonsterId);
         state.targetMonsterId = target.id;
         state.pendingTargetMonsterId = null;
-        state.monsterHp = target.health;
-      } else {
+        //state.monsterHp = target.health; // or keep at 0 to tick before spawning next monster
+      }
+      else {
         state.monsterHp = target.health;
       }
-      continue;
-    }
+
+      break;
+      //continue;
+    }*/
 
     const incomingDamage = Math.max(0, target.damage - stats.defense - state.nextHitDefense);
     const defensePercent = Math.min(100, stats.defensePercent + (state.nextHitDefensePercent ?? 0));
@@ -826,5 +934,6 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
       break;
     }
   }
+
   return state;
 }
