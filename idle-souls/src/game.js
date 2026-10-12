@@ -520,9 +520,10 @@ export function getPlayerStats(state, content) {
       }
     }
   }
+
   return {
     damage: 1 + gearDamage,
-    defense: bonuses.defense_flat,
+    defense: state.godMode ? 999 : bonuses.defense_flat,
     defensePercent: Math.min(100, bonuses.defense_percent),
     xpMultiplier: Math.max(0, 1 + bonuses.xp_multiplier),
   };
@@ -922,7 +923,10 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
       //continue;
     }*/
 
-    const incomingDamage = Math.max(0, target.damage - stats.defense - state.nextHitDefense);
+    const incomingDamage = state.godMode
+      ? 0
+      : Math.max(0, target.damage - stats.defense - state.nextHitDefense);
+    
     const defensePercent = Math.min(100, stats.defensePercent + (state.nextHitDefensePercent ?? 0));
     const reducedDamage = Math.max(0, incomingDamage * (1 - defensePercent / 100));
     state.nextHitDefense = 0;

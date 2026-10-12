@@ -44,6 +44,7 @@ const elements = {
   inventoryGrid: document.querySelector(".inventory-grid"),
   cheatPage: document.querySelector("#cheat-page"),
   cheatLootList: document.querySelector("#cheat-loot-list"),
+  cheatOptionsList: document.querySelector("#cheat-options-list"), // Add this line
   restoreKey: document.querySelector("#restore-key"),
   copyRestoreKey: document.querySelector("#copy-restore-key"),
   copyStatus: document.querySelector("#copy-status"),
@@ -59,10 +60,27 @@ const elements = {
   shopList: document.querySelector("#shop-list"),
   shopCurrencyCount: document.querySelector("#shop-currency-count"),
   refreshShop: document.querySelector("#refresh-shop"),
+
   sellConfirmDialog: document.querySelector("#sell-confirm-dialog"),
   sellConfirmItemName: document.querySelector("#sell-confirm-item-name"),
   sellConfirmRarity: document.querySelector("#sell-confirm-rarity"),
   sellConfirmPrice: document.querySelector("#sell-confirm-price"),
+  sellConfirmDialog: document.querySelector("#sell-confirm-dialog"),
+  sellConfirmItemName: document.querySelector("#sell-confirm-item-name"),
+  sellConfirmRarity: document.querySelector("#sell-confirm-rarity"),
+  sellConfirmPrice: document.querySelector("#sell-confirm-price"),
+  // SELL quantity dialog
+  sellQuantityDialog: document.querySelector("#sell-quantity-dialog"),
+  sellQtyItemName: document.querySelector("#sell-qty-item-name"),
+  sellQtyMax: document.querySelector("#sell-qty-max"),
+  sellQtyInput: document.querySelector("#sell-qty-input"),
+  sellQtyMinus: document.querySelector("#sell-qty-minus"),
+  sellQtyPlus: document.querySelector("#sell-qty-plus"),
+  sellQtyAll: document.querySelector("#sell-qty-all"),
+  sellQtyTotalSouls: document.querySelector("#sell-qty-total-souls"),
+  sellQuantityForm: document.querySelector("#sell-quantity-form"),
+  // end SELL quanity dialog
+
   playerStatsPanel: document.querySelector(".player-stats-panel"),
   monsterSection: document.querySelector("#monster-section"),
   activeMonsterCard: document.querySelector("#active-monster-card"),
@@ -219,6 +237,57 @@ function confirmLootSale(item, count = 1) {
   });
 }
 
+function promptSellQuantity(item, maxCount) {
+  elements.sellQtyItemName.textContent = item.name;
+  elements.sellQtyMax.textContent = maxCount;
+  elements.sellQtyInput.value = 1;
+  elements.sellQtyInput.max = maxCount;
+  
+  const updateTotalPrice = () => {
+    const qty = Math.max(1, Math.min(maxCount, Number(elements.sellQtyInput.value) || 1));
+    elements.sellQtyTotalSouls.textContent = numberFormat.format(item.value * qty);
+  };
+  updateTotalPrice();
+
+  // Clean up previous listeners or handle via single-use events
+  const onInput = () => updateTotalPrice();
+  const onMinus = () => {
+    elements.sellQtyInput.value = Math.max(1, Number(elements.sellQtyInput.value) - 1);
+    updateTotalPrice();
+  };
+  const onPlus = () => {
+    elements.sellQtyInput.value = Math.min(maxCount, Number(elements.sellQtyInput.value) + 1);
+    updateTotalPrice();
+  };
+  const onAll = () => {
+    elements.sellQtyInput.value = maxCount;
+    updateTotalPrice();
+  };
+
+  elements.sellQtyInput.addEventListener("input", onInput);
+  elements.sellQtyMinus.onclick = onMinus;
+  elements.sellQtyPlus.onclick = onPlus;
+  elements.sellQtyAll.onclick = onAll;
+
+  elements.sellQuantityDialog.showModal();
+
+  return new Promise((resolve) => {
+    elements.sellQuantityDialog.addEventListener(
+      "close",
+      () => {
+        elements.sellQtyInput.removeEventListener("input", onInput);
+        if (elements.sellQuantityDialog.returnValue === "confirm") {
+          const finalQty = Math.max(1, Math.min(maxCount, Number(elements.sellQtyInput.value) || 1));
+          resolve(finalQty);
+        } else {
+          resolve(null);
+        }
+      },
+      { once: true },
+    );
+  });
+}
+
 function populateMonsterSelect() {
   elements.monsterSelect.replaceChildren();
   if (state.awaitingMonsterSelection) {
@@ -251,7 +320,7 @@ function populateMonsterSelect() {
       const displayName = monsterDisplayName(monster);
       const monsterLabel = monster.unlock_level <= state.level
         ? `${displayName} (LVL ${monster.level})`
-        : `${displayName} (Unlocks at P-LVL ${monster.unlock_level})`;
+        : `${displayName} (LVL ${monster.unlock_level})`;
       option.textContent = isPendingTarget ? `${monsterLabel} (after current monster)` : monsterLabel;
       option.disabled = isDefeatedBoss
         || monster.unlock_level > state.level
@@ -631,7 +700,15 @@ function render() {
     button.addEventListener("click", async () => {
       try {
         if (isShop) {
-          await sellLootCount(1);
+          const count = state.lootInventory[item.id];
+          if (count > 3) {
+            const quantityToSell = await promptSellQuantity(item, count);
+            if (quantityToSell !== null) {
+              await sellLootCount(quantityToSell);
+            }
+          } else {
+            await sellLootCount(1);
+          }
           return;
         } else if (item.slot) {
           equipLoot(state, content, item.id);
@@ -650,6 +727,7 @@ function render() {
       render();
       saveState();
     });
+
     if (isShop) {
       const actions = createTextElement("div", "bag-sale-actions", "");
       actions.append(createTextElement("span", "bag-sale-value", `Value: ${numberFormat.format(item.value)}`));
@@ -676,7 +754,8 @@ function render() {
         actions.append(equipButton);
       }
       actions.append(button);
-      const count = state.lootInventory[item.id];
+
+      /* Sell All button (old)
       if (count > 5) {
         const sellAllButton = document.createElement("button");
         sellAllButton.type = "button";
@@ -684,7 +763,8 @@ function render() {
         sellAllButton.textContent = "Sell All";
         sellAllButton.addEventListener("click", () => sellLootCount(count));
         actions.append(sellAllButton);
-      }
+      }*/
+
       row.append(actions);
     } else {
       row.append(button);
@@ -692,15 +772,15 @@ function render() {
     return row;
   };
   renderList(
-    elements.bagArmorList,
-    bagLoot.filter((item) => item.slot !== ""),
-    "No armor in your bag.",
-    renderBagItem,
-  );
-  renderList(
     elements.bagItemsList,
     bagLoot.filter((item) => item.slot === ""),
     "No items in your bag.",
+    renderBagItem,
+  );
+  renderList(
+    elements.bagArmorList,
+    bagLoot.filter((item) => item.slot !== ""),
+    "No armor in your bag.",
     renderBagItem,
   );
   renderList(
@@ -738,9 +818,19 @@ function render() {
         button.type = "button";
         button.className = "button";
         button.textContent = "Sell";
-        button.addEventListener("click", () => sellMaterialCount(1));
+        button.addEventListener("click", async () => {
+          const count = state.currencyInventory[item.id];
+          if (count > 3) {
+            const quantityToSell = await promptSellQuantity(item, count);
+            if (quantityToSell !== null) {
+              sellMaterialCount(quantityToSell);
+            }
+          } else {
+            sellMaterialCount(1);
+          }
+        });
         actions.append(button);
-        const count = state.currencyInventory[item.id];
+        /* Sell All button (old)
         if (count > 5) {
           const sellAllButton = document.createElement("button");
           sellAllButton.type = "button";
@@ -748,7 +838,8 @@ function render() {
           sellAllButton.textContent = "Sell All";
           sellAllButton.addEventListener("click", () => sellMaterialCount(count));
           actions.append(sellAllButton);
-        }
+        }*/
+
         row.append(actions);
       }
       return row;
@@ -813,6 +904,21 @@ elements.refreshShop.addEventListener("click", () => {
 
 function renderCheatLoot() {
   elements.cheatLootList.replaceChildren();
+
+  // -- GOD MODE TOGGLE BUTTON ---
+  const godModeButton = document.createElement("button");
+  godModeButton.type = "button";
+  godModeButton.className = "button secondary";
+  godModeButton.textContent = `God Mode: ${state.godMode ? "ON" : "OFF"}`;
+  godModeButton.addEventListener("click", () => {
+    state.godMode = !state.godMode;
+    godModeButton.textContent = `God Mode: ${state.godMode ? "ON" : "OFF"}`;
+    setStatus(`God Mode is now ${state.godMode ? "ON" : "OFF"}.`);
+    render();
+    saveState();
+  });
+  elements.cheatLootList.append(godModeButton);
+
   for (const item of content.loot) {
     const button = document.createElement("button");
     button.type = "button";

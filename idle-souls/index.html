@@ -49,7 +49,7 @@
               <span class="gear-currency-count">Souls: <strong id="shop-currency-count">0</strong></span>
             </div>
           </div>
-          <button id="refresh-shop" class="button secondary shop-refresh-button" type="button">Refresh Shop · 5 Souls</button>
+          <button id="refresh-shop" class="button secondary shop-refresh-button" type="button">Refresh Shop (5 Souls)</button>
           <div id="shop-list" class="shop-list"></div>
         </section>
         <section id="monster-section" class="panel combat-panel monster-panel">
@@ -99,7 +99,7 @@
           </div>
           <div id="player-stats-compact" class="player-stats-compact" aria-label="Player stats summary" hidden>
             <span>Level: <strong id="compact-player-level">1</strong></span>
-            <span>HP: <strong id="compact-player-hp">400</strong>/<strong id="compact-player-max-hp">400</strong> [D: <strong id="compact-player-armor">0</strong>]</span>
+            <span>HP: <strong id="compact-player-hp">400</strong> / <strong id="compact-player-max-hp">400</strong><br>[D: <strong id="compact-player-armor">0</strong>]</span>
             <span>DPS: <strong id="compact-player-damage">1</strong></span>
           </div>
           <div id="player-stats-details">
@@ -155,14 +155,14 @@
             </div>
             <div id="bag-content">
               <div class="bag-tabs" role="tablist" aria-label="Bag categories">
-                <button id="bag-items-tab" class="bag-tab" type="button" role="tab" aria-selected="true" aria-controls="bag-items-panel" tabindex="-1">Items</button>
-                <button id="bag-armor-tab" class="bag-tab" type="button" role="tab" aria-selected="false" aria-controls="bag-armor-panel" tabindex="0">Equipment</button>
+                <button id="bag-items-tab" class="bag-tab" type="button" role="tab" aria-selected="true" aria-controls="bag-items-panel" tabindex="0">Items</button>
+                <button id="bag-armor-tab" class="bag-tab" type="button" role="tab" aria-selected="false" aria-controls="bag-armor-panel" tabindex="-1">Equipment</button>
                 <button id="bag-materials-tab" class="bag-tab" type="button" role="tab" aria-selected="false" aria-controls="bag-materials-panel" tabindex="-1">Materials</button>
               </div>
-              <div id="bag-items-panel" role="tabpanel" aria-labelledby="bag-items-tab" hidden>
+              <div id="bag-items-panel" role="tabpanel" aria-labelledby="bag-items-tab">
                 <div id="bag-items-list" class="item-list"></div>
               </div>
-              <div id="bag-armor-panel" role="tabpanel" aria-labelledby="bag-armor-tab">
+              <div id="bag-armor-panel" role="tabpanel" aria-labelledby="bag-armor-tab" hidden>
                 <div id="bag-armor-list" class="item-list"></div>
               </div>
               <div id="bag-materials-panel" role="tabpanel" aria-labelledby="bag-materials-tab" hidden>
@@ -174,7 +174,7 @@
         </div>
 
         <footer>
-          <p>Dark Souls is fully owned by FromSoftware. This is a work of art.</p>
+          <p>Souls games are owned by FromSoftware. This is fan art.</p>
         </footer>
       </div>
 
@@ -266,6 +266,7 @@
           </div>
           <button class="button secondary return-to-game" type="button">Back to game</button>
         </div>
+        <div id="cheat-options-list" class="item-list" style="margin-bottom: 1rem;"></div>
         <p class="muted">Select any item to add one copy to your Bag for free.</p>
         <div id="cheat-loot-list" class="item-list cheat-loot-list"></div>
       </section>
@@ -278,6 +279,49 @@
           <button class="button secondary" type="submit" form="sell-confirm-form" value="cancel">Cancel</button>
         </form>
       </dialog>
+
+      <!-- Quantity Select Dialog for Selling Multiple Items -->
+      <dialog id="sell-quantity-dialog" class="sell-confirm-dialog soul-quantity-dialog" aria-labelledby="sell-quantity-title">
+        <div class="sell-qty-header">
+          <h3 id="sell-quantity-title">Sell: <span id="sell-qty-item-name"></span></h3>
+          <p class="muted">Specify quantity.</p>
+        </div>
+        
+        <div class="quantity-selector-container-stacked">
+          <div class="qty-number-row">
+            <button id="sell-qty-plus" class="qty-arrow-btn" type="button" aria-label="Increase quantity">▲</button>
+            <div class="quantity-input-wrapper">
+              <input id="sell-qty-input" class="quantity-input-stepper" type="text" inputmode="numeric" value="01">
+            </div>
+            <button id="sell-qty-minus" class="qty-arrow-btn" type="button" aria-label="Decrease quantity">▼</button>
+          </div>
+          <div class="qty-all-row">
+            <button id="sell-qty-all" class="button secondary qty-all-btn" type="button">Sell ALL (<span id="sell-qty-max"></span>)</button>
+          </div>
+          <p class="sell-qty-total-price muted">(Total Price: <strong id="sell-qty-total-souls">0</strong> Souls)</p>
+        </div>
+
+        <form id="sell-quantity-form" class="sell-confirm-actions horizontal-actions" method="dialog">
+          <button class="button wide-action-btn" type="submit" value="confirm">OK</button>
+          <button class="button secondary wide-action-btn" type="submit" value="cancel">CANCEL</button>
+        </form>
+      </dialog>
+      <!-- OLD VIEW
+       <dialog id="sell-quantity-dialog" class="sell-confirm-dialog" aria-labelledby="sell-quantity-title">
+        <h2 id="sell-quantity-title">Sell <span id="sell-qty-item-name"></span></h2>
+        <p class="muted">Specify quantity. (Max: <span id="sell-qty-max"></span>)</p>
+        <div class="quantity-selector-row">
+          <button id="sell-qty-minus" class="button secondary" type="button">−</button>
+          <input id="sell-qty-input" class="quantity-input" type="number" min="1" value="1">
+          <button id="sell-qty-plus" class="button secondary" type="button">+</button>
+          <button id="sell-qty-all" class="button secondary" type="button">All</button>
+        </div>
+        <p class="sell-qty-total-price muted">Total Price: <strong id="sell-qty-total-souls">0</strong> Souls</p>
+        <form id="sell-quantity-form" class="sell-confirm-actions" method="dialog">
+          <button class="button" type="submit" value="confirm">Confirm Sale</button>
+          <button class="button secondary" type="submit" value="cancel">Cancel</button>
+        </form>
+      </dialog>-->
     </main>
     <script type="module" src="./src/main.js"></script>
   </body>
