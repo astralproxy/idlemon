@@ -1161,21 +1161,30 @@ function tick() {
   if (gameIsActive) {
     advanceGame(state, content, elapsed * gameSpeed);
   }
+
+  // Triggered when a Boss is defeated (entering awaiting selection state)
   if (!wasAwaitingMonsterSelection && state.awaitingMonsterSelection) {
     setStatus(state.targetMonsterId === null
       ? "Fled from combat. Choose a monster when you're ready to fight again."
       : "Boss defeated! Choose a new monster to continue.");
+    populateMonsterSelect();
     render();
     saveState();
-    return;
+    return; // early out for special case: boss kill
   }
+
+  // Triggered when switching targets after a monster kill
   if (previousTargetId !== state.targetMonsterId) {
     const previousTarget = content.monsters.find((monster) => monster.id === previousTargetId);
     const nextTarget = content.monsters.find((monster) => monster.id === state.targetMonsterId);
     setStatus(`${monsterDisplayName(previousTarget)} defeated. Now fighting ${monsterDisplayName(nextTarget)}.`);
-  } else if (previousTargetId && state.kills[previousTargetId] > previousTargetKills) {
+    populateMonsterSelect(); // IMPORTANT!
+  }
+  // Triggered when a normal monster is defeated and loops
+  else if (previousTargetId && state.kills[previousTargetId] > previousTargetKills) {
     const defeatedMonster = content.monsters.find((monster) => monster.id === previousTargetId);
     setStatus(`${monsterDisplayName(defeatedMonster)} defeated.`);
+    populateMonsterSelect();
   }
   render();
   if (now - state.updatedAt >= 15_000) {
