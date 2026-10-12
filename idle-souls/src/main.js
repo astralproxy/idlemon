@@ -114,7 +114,10 @@ const elements = {
   compactPlayerHpMax: document.querySelector("#compact-player-max-hp"),
   compactPlayerArmor: document.querySelector("#compact-player-armor"),
   compactPlayerDamage: document.querySelector("#compact-player-damage"),
-  monsterSelect: document.querySelector("#monster-select"),
+  monsterDropdown: document.querySelector("#monster-dropdown"),
+  monsterToggleBtn: document.querySelector("#monster-dropdown .dropdown-toggle"),
+  monsterMenu: document.querySelector("#monster-dropdown .dropdown-menu"),
+  monsterSelectedLabel: document.querySelector("#monster-dropdown .dropdown-selected-label"),
   monsterLevel: document.querySelector("#monster-level"),
   monsterName: document.querySelector("#monster-name"),
   monsterHealth: document.querySelector("#monster-health"),
@@ -289,64 +292,64 @@ function promptSellQuantity(item, maxCount) {
 }
 
 function populateMonsterSelect() {
-  elements.monsterSelect.replaceChildren();
+  elements.monsterMenu.replaceChildren();
+  let currentSelectedText = "Choose a monster...";
+
   if (state.awaitingMonsterSelection) {
-    const prompt = document.createElement("option");
-    prompt.value = "";
-    prompt.textContent = "Choose a monster...";
-    prompt.selected = true;
-    elements.monsterSelect.append(prompt);
+    currentSelectedText = "Choose a monster...";
   }
 
-  // Find the index of the first undefeated Boss in the monster list
   const undefeatedBossIndex = content.monsters.findIndex(
     (monster) => monster.type.toLowerCase() === "boss" && (state.kills[monster.id] ?? 0) === 0
   );
 
   for (let index = 0; index < content.monsters.length; index += 1) {
     const monster = content.monsters[index];
-    const option = document.createElement("option");
-    option.value = monster.id;
+    const item = document.createElement("div");
+    item.className = "dropdown-item";
+    item.dataset.value = monster.id;
 
-    // Check if this monster is below the next undefeated Boss
     const isObscured = undefeatedBossIndex !== -1 && index > undefeatedBossIndex;
+    const isSelected = !state.awaitingMonsterSelection && monster.id === (state.pendingTargetMonsterId ?? state.targetMonsterId);
 
     if (isObscured) {
-      option.textContent = "??? (Beat boss to reveal)";
-      option.disabled = true;
+      item.textContent = "??? (Beat boss to reveal)";
+      item.classList.add("is-disabled");
     } else {
       const isPendingTarget = monster.id === state.pendingTargetMonsterId;
-      const isDefeatedBoss = monster.type.toLowerCase() === "boss" && (state.kills[monster.id] ?? 0) > 0;
-      const displayName = monsterDisplayName(monster);
-      const monsterLabel = monster.unlock_level <= state.level
-        ? `${displayName} (LVL ${monster.level})`
-        : `${displayName} (LVL ${monster.unlock_level})`;
-      option.textContent = isPendingTarget ? `${monsterLabel} (after current monster)` : monsterLabel;
-      option.disabled = isDefeatedBoss
+      const isBoss = monster.type.toLowerCase() === "boss";
+      if (isBoss) {
+        item.classList.add("boss-item");
+      }
+      const isDefeatedBoss = isBoss && (state.kills[monster.id] ?? 0) > 0;
+      const isDisabled = isDefeatedBoss
         || monster.unlock_level > state.level
         || (state.awaitingMonsterSelection && monster.id === state.targetMonsterId);
+      
+      const displayName = monsterDisplayName(monster);
+      const monsterLabel = `${displayName}`;
+      /*monster.unlock_level <= state.level
+        ? `${displayName} (LVL ${monster.level})`
+        : `${displayName} (LVL ${monster.unlock_level})`;*/
+      item.textContent = isPendingTarget ? `${monsterLabel} (after current monster)` : monsterLabel;
+
       if (isDefeatedBoss) {
-        option.classList.add("boss-defeated");
+        item.classList.add("boss-defeated");
+      }
+      if (isDisabled) {
+        item.classList.add("is-disabled");
       }
     }
 
-    option.selected = state.awaitingMonsterSelection
-      ? false
-      : monster.id === (state.pendingTargetMonsterId ?? state.targetMonsterId);
-    elements.monsterSelect.append(option);
+    if (isSelected) {
+      item.classList.add("is-selected");
+      currentSelectedText = item.textContent;
+    }
+
+    elements.monsterMenu.append(item);
   }
 
-  // for (const monster of content.monsters) {
-  //   const option = document.createElement("option");
-  //   option.value = monster.id;
-  //   const isDefeatedBoss = monster.type.toLowerCase() === "boss" && (state.kills[monster.id] ?? 0) > 0;
-  //   const displayName = monsterDisplayName(monster);
-  //   option.textContent = monster.unlock_level <= state.level
-  //     ? `${displayName} (LVL ${monster.level})`
-  //     : `${displayName} (Unlocks at P-LVL ${monster.unlock_level})`;
-  //   option.disabled = isDefeatedBoss || monster.unlock_level > state.level;
-  //   elements.monsterSelect.append(option);
-  // }
+  elements.monsterSelectedLabel.textContent = currentSelectedText;
 }
 
 function render() {
@@ -396,85 +399,15 @@ function render() {
     elements.restoreKey.value = createRestoreKey(state);
   }
 
-  if (document.activeElement !== elements.monsterSelect) {
-    elements.monsterSelect.value = state.pendingTargetMonsterId ?? state.targetMonsterId ?? "";
+  // Update the selected label text based on current state target
+  const currentMonster = content.monsters.find((m) => m.id === (state.pendingTargetMonsterId ?? state.targetMonsterId));
+  if (currentMonster) {
+    elements.monsterSelectedLabel.textContent = monsterDisplayName(currentMonster);
+  } else if (state.awaitingMonsterSelection) {
+    elements.monsterSelectedLabel.textContent = "Choose a monster...";
   }
   const target = content.monsters.find((monster) => monster.id === state.targetMonsterId);
   const availableMonsters = content.monsters.filter((monster) => monster.unlock_level <= state.level);
-
-  // v2... moved to populateMonsterSelect
-  // const target = content.monsters.find((monster) => monster.id === state.targetMonsterId);
-  // const availableMonsters = content.monsters.filter((monster) => monster.unlock_level <= state.level);
-  // elements.monsterSelect.replaceChildren();
-  // if (state.awaitingMonsterSelection) {
-  //   const prompt = document.createElement("option");
-  //   prompt.value = "";
-  //   prompt.textContent = target ? "Choose a different monster..." : "Choose a monster...";
-  //   prompt.disabled = Boolean(target);
-  //   prompt.selected = true;
-  //   elements.monsterSelect.append(prompt);
-  // }
-  
-  // // Find the index of the first undefeated Boss in the monster list
-  // const undefeatedBossIndex = content.monsters.findIndex(
-  //   (monster) => monster.type.toLowerCase() === "boss" && (state.kills[monster.id] ?? 0) === 0
-  // );
-
-  // for (let index = 0; index < content.monsters.length; index += 1) {
-  //   const monster = content.monsters[index];
-  //   const option = document.createElement("option");
-  //   option.value = monster.id;
-
-  //   // Check if this monster is below the next undefeated Boss
-  //   const isObscured = undefeatedBossIndex !== -1 && index > undefeatedBossIndex;
-
-  //   if (isObscured) {
-  //     option.textContent = "??? (Beat boss to reveal)";
-  //     option.disabled = true;
-  //   } else {
-  //     const isPendingTarget = monster.id === state.pendingTargetMonsterId;
-  //     const isDefeatedBoss = monster.type.toLowerCase() === "boss" && (state.kills[monster.id] ?? 0) > 0;
-  //     const displayName = monsterDisplayName(monster);
-  //     const monsterLabel = monster.unlock_level <= state.level
-  //       ? `${displayName} (LVL ${monster.level})`
-  //       : `${displayName} (LVL ${monster.unlock_level})`;
-  //     option.textContent = isPendingTarget ? `${monsterLabel} (after current monster)` : monsterLabel;
-  //     option.disabled = isDefeatedBoss
-  //       || monster.unlock_level > state.level
-  //       || (state.awaitingMonsterSelection && monster.id === state.targetMonsterId);
-  //     if (isDefeatedBoss) {
-  //       option.classList.add("boss-defeated");
-  //     }
-  //   }
-
-  //   option.selected = state.awaitingMonsterSelection
-  //     ? false
-  //     : monster.id === (state.pendingTargetMonsterId ?? state.targetMonsterId);
-  //   elements.monsterSelect.append(option);
-  // }
-
-  // v1...
-  // for (const monster of content.monsters) {
-  //   const option = document.createElement("option");
-  //   option.value = monster.id;
-  //   const isPendingTarget = monster.id === state.pendingTargetMonsterId;
-  //   const isDefeatedBoss = monster.type.toLowerCase() === "boss" && (state.kills[monster.id] ?? 0) > 0;
-  //   const displayName = monsterDisplayName(monster);
-  //   const monsterLabel = monster.unlock_level <= state.level
-  //     ? `${displayName} (LVL ${monster.level})`
-  //     : `${displayName} (Unlocks at P-LVL ${monster.unlock_level})`;
-  //   option.textContent = isPendingTarget ? `${monsterLabel} (after current monster)` : monsterLabel;
-  //   option.disabled = isDefeatedBoss
-  //     || monster.unlock_level > state.level
-  //     || (state.awaitingMonsterSelection && monster.id === state.targetMonsterId);
-  //   if (isDefeatedBoss) {
-  //     option.classList.add("boss-defeated");
-  //   }
-  //   option.selected = state.awaitingMonsterSelection
-  //     ? false
-  //     : monster.id === (state.pendingTargetMonsterId ?? state.targetMonsterId);
-  //   elements.monsterSelect.append(option);
-  // }
 
   elements.activeMonsterCard.hidden = !target || state.awaitingMonsterSelection;
   elements.bossKilledCard.hidden = !target || !state.awaitingMonsterSelection;
@@ -538,13 +471,18 @@ function render() {
     elements.defeatedCount.textContent = `Defeated: ${numberFormat.format(state.kills[target.id] ?? 0)} monsters`;
     elements.unlockedCount.textContent = `${numberFormat.format(availableMonsters.length)} of ${numberFormat.format(content.monsters.length)} unlocked`;
   } else {
-    elements.monsterSelect.value = "";
+    elements.monsterSelectedLabel.textContent = "Choose a monster...";
     elements.defeatedCount.textContent = `Defeated: ${numberFormat.format(Object.values(state.kills).reduce((total, count) => total + count, 0))} monsters`;
     elements.unlockedCount.textContent = `${numberFormat.format(availableMonsters.length)} of ${numberFormat.format(content.monsters.length)} unlocked`;
   }
 
   const totalKills = Object.values(state.kills).reduce((total, count) => total + count, 0);
-  elements.gameOverStats.textContent = `Monsters defeated: ${numberFormat.format(totalKills)}\nPlayer level: ${numberFormat.format(state.level)}`;
+  // Calculate total bosses defeated (monsters with type "boss")
+  const totalBossesDefeated = content.monsters
+    .filter((monster) => monster.type.toLowerCase() === "boss")
+    .reduce((total, boss) => total + (state.kills[boss.id] ?? 0), 0);
+
+  elements.gameOverStats.textContent = `Player level: ${numberFormat.format(state.level)}\n\nEnemies defeated: ${numberFormat.format(totalKills)}\nBosses defeated: ${numberFormat.format(totalBossesDefeated)}`;
   renderShop();
   const reviveItem = content.loot.find((item) => {
     const skill = content.skills.find((candidate) => candidate.name === item.skill);
@@ -556,7 +494,7 @@ function render() {
   elements.revivePrompt.hidden = !reviveItem;
   elements.startOver.hidden = Boolean(reviveItem);
   if (reviveItem) {
-    elements.reviveMessage.textContent = `${reviveItem.name} in your Bag can bring you back.`;
+    elements.reviveMessage.textContent = `Have you lost your nerve? ... No? Then go along. No one's stopping you.`;
     elements.revivePlayer.textContent = `Use ${reviveItem.name} to revive`;
     elements.revivePlayer.dataset.lootId = reviveItem.id;
   }
@@ -646,15 +584,29 @@ function render() {
     const row = document.createElement("article");
     const isNewLootVisible = state.activeTab === "prepare" && state.newLootIds.includes(item.id);
     row.className = `list-item loot-item${isNewLootVisible ? " is-new-loot" : ""}`;
-    row.append(
-      createTextElement("div", "skill-copy", ""),
-      createTextElement("span", "badge", `×${state.lootInventory[item.id]}`),
-    );
+    
+    // Text description container (Column 1)
+    const textContainer = createTextElement("div", "skill-copy", "");
+
+    // Badge element (Column 2)
+    const badge = createTextElement("span", "badge", `×${state.lootInventory[item.id]}`);
+
     const isShop = state.activeTab === "shop";
-    row.firstElementChild.append(
-      createTextElement("h3", `item-title loot-rarity rarity-${item.rarity.toLowerCase()}`, item.name),
-      createTextElement("p", "muted item-description", `${item.slot ? `${item.slot}` : "Consumable"}${isShop ? "" : ` · Value ${numberFormat.format(item.value)}`} · ${lootEffectText(item)}`),
+    
+    const slotLabel = item.slot ? item.slot : "Consumable";
+    const titleSpan = createTextElement("span", `item-title loot-rarity rarity-${item.rarity.toLowerCase()}`, item.name);
+    const slotSpan = createTextElement("span", "muted", ` (${slotLabel})`);
+    slotSpan.style.fontWeight = "normal";
+
+    const heading = createTextElement("h3", "", "");
+    heading.append(titleSpan, slotSpan);
+
+    textContainer.append(
+      heading,
+      createTextElement("p", "muted item-description", lootEffectText(item)),
+      ...(isShop ? [createTextElement("p", "muted item-description", `Value: ${numberFormat.format(item.value)}`)] : []),
     );
+    
     const button = document.createElement("button");
     button.type = "button";
     button.className = "button";
@@ -666,6 +618,7 @@ function render() {
     if (item.slot === "Offhand" && isTwoHandEquipped(state, content)) {
       button.title = "Unequip the Two-Hand item before equipping Offhand gear.";
     }
+    
     const sellLootCount = async (count) => {
       try {
         const rarityLevels = {
@@ -728,47 +681,18 @@ function render() {
       saveState();
     });
 
+    // Append to row in exact grid column order: [Text, Badge, Button/Actions]
     if (isShop) {
       const actions = createTextElement("div", "bag-sale-actions", "");
       actions.append(createTextElement("span", "bag-sale-value", `Value: ${numberFormat.format(item.value)}`));
-      if (item.slot) {
-        const equipButton = document.createElement("button");
-        equipButton.type = "button";
-        equipButton.className = "button secondary";
-        equipButton.textContent = "Equip";
-        equipButton.disabled = item.slot === "Offhand" && isTwoHandEquipped(state, content);
-        if (equipButton.disabled) {
-          equipButton.title = "Unequip the Two-Hand item before equipping Offhand gear.";
-        }
-        equipButton.addEventListener("click", () => {
-          try {
-            equipLoot(state, content, item.id);
-            setStatus(`${item.name} equipped.`);
-            render();
-            saveState();
-          } catch (error) {
-            setStatus(`Could not equip ${item.name}: ${error.message}`);
-            render();
-          }
-        });
-        actions.append(equipButton);
-      }
+      
       actions.append(button);
 
-      /* Sell All button (old)
-      if (count > 5) {
-        const sellAllButton = document.createElement("button");
-        sellAllButton.type = "button";
-        sellAllButton.className = "button secondary";
-        sellAllButton.textContent = "Sell All";
-        sellAllButton.addEventListener("click", () => sellLootCount(count));
-        actions.append(sellAllButton);
-      }*/
-
-      row.append(actions);
+      row.append(textContainer, badge, actions);
     } else {
-      row.append(button);
+      row.append(textContainer, badge, button);
     }
+
     return row;
   };
   renderList(
@@ -1192,37 +1116,48 @@ function tick() {
   }
 }
 
-elements.monsterSelect.addEventListener("focus", () => {
-  isMonsterSelectOpen = true;
+elements.monsterToggleBtn.addEventListener("click", () => {
+  const isExpanded = elements.monsterToggleBtn.getAttribute("aria-expanded") === "true";
+  elements.monsterToggleBtn.setAttribute("aria-expanded", !isExpanded);
+  elements.monsterMenu.hidden = isExpanded;
 });
 
-elements.monsterSelect.addEventListener("blur", () => {
-  isMonsterSelectOpen = false;
-  lastTickAt = Date.now();
-});
+elements.monsterMenu.addEventListener("click", (e) => {
+  const item = e.target.closest(".dropdown-item");
+  if (!item || item.classList.contains("is-disabled")) return;
 
-elements.monsterSelect.addEventListener("change", () => {
-  isMonsterSelectOpen = false;
-  if (!elements.monsterSelect.value) {
-    return;
-  }
+  elements.monsterMenu.hidden = true;
+  elements.monsterToggleBtn.setAttribute("aria-expanded", "false");
+
+  const selectedValue = item.dataset.value;
+  if (!selectedValue) return;
+
   const wasPaused = state.awaitingMonsterSelection;
   const wasAwaitingMonsterSelection = state.awaitingMonsterSelection;
   const hadPendingTarget = state.pendingTargetMonsterId !== null;
-  const selectedMonster = content.monsters.find((monster) => monster.id === elements.monsterSelect.value);
-  selectMonster(state, content, elements.monsterSelect.value);
+  const selectedMonster = content.monsters.find((monster) => monster.id === selectedValue);
+  
+  selectMonster(state, content, selectedValue);
   lastTickAt = Date.now();
   setStatus(wasAwaitingMonsterSelection
     ? `Now fighting ${monsterDisplayName(selectedMonster)}.`
     : state.pendingTargetMonsterId
-    ? `Finish ${monsterDisplayName(content.monsters.find((monster) => monster.id === state.targetMonsterId))} first. Switching to ${monsterDisplayName(selectedMonster)} next.`
+      ? `Finish ${monsterDisplayName(content.monsters.find((monster) => monster.id === state.targetMonsterId))} first. Switching to ${monsterDisplayName(selectedMonster)} next.`
       : wasPaused
-      ? "Target changed. Combat remains paused."
-      : hadPendingTarget && state.targetMonsterId === selectedMonster.id
-        ? "Target change canceled."
-        : "Target changed. Combat continues automatically.");
+        ? "Target changed. Combat remains paused."
+        : hadPendingTarget && state.targetMonsterId === selectedMonster.id
+          ? "Target change canceled."
+          : "Target changed. Combat continues automatically.");
   render();
   saveState();
+});
+
+// Close dropdown if clicking outside
+document.addEventListener("click", (e) => {
+  if (!elements.monsterDropdown.contains(e.target)) {
+    elements.monsterMenu.hidden = true;
+    elements.monsterToggleBtn.setAttribute("aria-expanded", "false");
+  }
 });
 
 elements.revivePlayer.addEventListener("click", () => {

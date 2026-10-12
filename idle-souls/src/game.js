@@ -738,8 +738,16 @@ export function revivePlayer(state, content, lootId) {
     return false;
   }
   consumeLoot(state, item.id);
-  state.hp = getPlayerMaxHp(state.level);
+  state.hp = getPlayerMaxHp(state.level) / 2; // half
   state.gameOver = false;
+
+  // Reset selected monster so the player must choose a new target
+  state.targetMonsterId = null;
+  state.pendingTargetMonsterId = null;
+  state.monsterHp = 0;
+  state.awaitingMonsterSelection = true;
+  state.activeTab = "fight";
+
   return true;
 }
 
