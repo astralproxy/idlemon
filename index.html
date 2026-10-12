@@ -55,7 +55,15 @@
         <section id="monster-section" class="panel combat-panel monster-panel">
           <div class="monster-select-row">
             <label for="monster-select">Fighting...</label>
-            <select id="monster-select"></select>
+            <!--<select id="monster-select"></select>-->
+            <div class="custom-dropdown" id="monster-dropdown">
+              <!-- The button that looks like the closed select box -->
+              <button type="button" class="dropdown-toggle" aria-expanded="false">
+                <span class="dropdown-selected-label">Select an enemy...</span>
+                <span class="dropdown-arrow">▼</span>
+              </button>
+              <div id="monster-dropdown-menu" class="dropdown-menu" role="listbox" hidden></div>
+            </div>
           </div>
           <article id="monster-card" class="monster-card">
             <div id="active-monster-card">
@@ -179,8 +187,8 @@
       </div>
 
       <section id="game-over" class="panel game-over-panel" aria-labelledby="game-over-title" hidden>
-        <p class="eyebrow">Run ended</p>
-        <h2 id="game-over-title">Game Over</h2>
+        <p class="eyebrow"></p>
+        <h2 id="game-over-title">YOU DIED</h2>
         <p id="game-over-stats" class="muted"></p>
         <div id="revive-prompt" class="revive-prompt" hidden>
           <p id="revive-message"></p>

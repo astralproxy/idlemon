@@ -44,8 +44,7 @@ select {
 }
 
 .page-header,
-.section-heading,
-.list-item {
+.section-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -471,6 +470,7 @@ h3 {
 .monster-select-row select {
   min-width: 0;
   flex: 1;
+  color: #ffaa00;
 }
 
 .monster-card-heading {
@@ -586,7 +586,8 @@ h3 {
 
 .game-over-panel h2 {
   margin-bottom: 12px;
-  font-size: 2rem;
+  font-size: 3rem;
+  color: red;
 }
 
 #game-over-stats {
@@ -633,6 +634,76 @@ select:focus-visible,
 button:focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: 2px;
+}
+
+.custom-dropdown {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.custom-dropdown .dropdown-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: inherit;
+  cursor: pointer;
+}
+
+.custom-dropdown .dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 10;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 40%);
+}
+
+.custom-dropdown .dropdown-item {
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.custom-dropdown .dropdown-item.is-selected {
+  color: #ffb074; /* Light orange color for the selected item */
+  /*font-weight: bold; /* Optional: make it stand out */
+}
+
+.custom-dropdown .dropdown-item:hover:not(.is-disabled) {
+  background: var(--surface-raised);
+  color: var(--accent);
+}
+
+.custom-dropdown .dropdown-item.boss-item {
+  font-weight: bold;
+}
+
+/* This now works reliably on custom div elements! */
+.custom-dropdown .dropdown-item.boss-defeated {
+  text-decoration: line-through;
+  color: #777;
+}
+
+.custom-dropdown .dropdown-item.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.custom-dropdown .dropdown-menu[hidden] {
+  display: none !important;
 }
 
 .monster-card {
@@ -797,6 +868,30 @@ button:focus-visible {
   background: var(--surface-raised);
 }
 
+.list-item.loot-item {
+  display: grid;
+  grid-template-columns: 65% 60px 1fr; /* 1st column takes remaining space, 2nd column holds the badge at a fixed width, 3rd holds the button */
+  align-items: center;
+  gap: 12px;
+}
+
+/* Ensure elements inside the grid don't break layout */
+.list-item.loot-item .skill-copy {
+  min-width: 0;
+}
+
+.list-item.loot-item .badge {
+  justify-self: center;
+}
+
+/* Ensure shop actions align nicely inside the 3rd grid column */
+.list-item.loot-item .bag-sale-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .item-details {
   min-width: 0;
   flex: 1 1 auto;
@@ -824,15 +919,6 @@ button:focus-visible {
 .loot-item.is-new-loot {
   border-color: #fff176;
   box-shadow: 0 0 0 1px #fff176;
-}
-
-.bag-sale-actions {
-  display: flex;
-  flex: 0 1 auto; /* Allow shrinking if needed */
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap; /* Allows wrapping on extremely narrow viewports */
-  justify-content: flex-end;
 }
 
 .bag-sale-value {
