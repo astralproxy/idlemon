@@ -126,7 +126,7 @@ const elements = {
 };
 
 const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
-const GEAR_SLOTS = ["Hand", "Offhand", "Head", "Chest", "Hands", "Feet"];
+const GEAR_SLOTS = ["Hand", "Offhand", "Head", "Chest", "Hands", "Legs"];
 const QUICK_ITEM_IGNORED_SKILLS = new Set(["revive"]);
 const INVENTORY_ORDER_KEY = "idlemon-inventory-order-swapped";
 const HIDE_STATUS_TEXT_KEY = "idlemon-hide-status-text";
@@ -276,27 +276,65 @@ function render() {
     prompt.selected = true;
     elements.monsterSelect.append(prompt);
   }
-  for (const monster of content.monsters) {
+  
+  // Find the index of the first undefeated Boss in the monster list
+  const undefeatedBossIndex = content.monsters.findIndex(
+    (monster) => monster.type.toLowerCase() === "boss" && (state.kills[monster.id] ?? 0) === 0
+  );
+
+  for (let index = 0; index < content.monsters.length; index += 1) {
+    const monster = content.monsters[index];
     const option = document.createElement("option");
     option.value = monster.id;
-    const isPendingTarget = monster.id === state.pendingTargetMonsterId;
-    const isDefeatedBoss = monster.type.toLowerCase() === "boss" && (state.kills[monster.id] ?? 0) > 0;
-    const displayName = monsterDisplayName(monster);
-    const monsterLabel = monster.unlock_level <= state.level
-      ? `${displayName} (LVL ${monster.level})`
-      : `${displayName} (Unlocks at P-LVL ${monster.unlock_level})`;
-    option.textContent = isPendingTarget ? `${monsterLabel} (after current monster)` : monsterLabel;
-    option.disabled = isDefeatedBoss
-      || monster.unlock_level > state.level
-      || (state.awaitingMonsterSelection && monster.id === state.targetMonsterId);
-    if (isDefeatedBoss) {
-      option.classList.add("boss-defeated");
+
+    // Check if this monster is below the next undefeated Boss
+    const isObscured = undefeatedBossIndex !== -1 && index > undefeatedBossIndex;
+
+    if (isObscured) {
+      option.textContent = "??? (Beat boss to reveal)";
+      option.disabled = true;
+    } else {
+      const isPendingTarget = monster.id === state.pendingTargetMonsterId;
+      const isDefeatedBoss = monster.type.toLowerCase() === "boss" && (state.kills[monster.id] ?? 0) > 0;
+      const displayName = monsterDisplayName(monster);
+      const monsterLabel = monster.unlock_level <= state.level
+        ? `${displayName} (LVL ${monster.level})`
+        : `${displayName} (LVL ${monster.unlock_level})`;
+      option.textContent = isPendingTarget ? `${monsterLabel} (after current monster)` : monsterLabel;
+      option.disabled = isDefeatedBoss
+        || monster.unlock_level > state.level
+        || (state.awaitingMonsterSelection && monster.id === state.targetMonsterId);
+      if (isDefeatedBoss) {
+        option.classList.add("boss-defeated");
+      }
     }
+
     option.selected = state.awaitingMonsterSelection
       ? false
       : monster.id === (state.pendingTargetMonsterId ?? state.targetMonsterId);
     elements.monsterSelect.append(option);
   }
+  // for (const monster of content.monsters) {
+  //   const option = document.createElement("option");
+  //   option.value = monster.id;
+  //   const isPendingTarget = monster.id === state.pendingTargetMonsterId;
+  //   const isDefeatedBoss = monster.type.toLowerCase() === "boss" && (state.kills[monster.id] ?? 0) > 0;
+  //   const displayName = monsterDisplayName(monster);
+  //   const monsterLabel = monster.unlock_level <= state.level
+  //     ? `${displayName} (LVL ${monster.level})`
+  //     : `${displayName} (Unlocks at P-LVL ${monster.unlock_level})`;
+  //   option.textContent = isPendingTarget ? `${monsterLabel} (after current monster)` : monsterLabel;
+  //   option.disabled = isDefeatedBoss
+  //     || monster.unlock_level > state.level
+  //     || (state.awaitingMonsterSelection && monster.id === state.targetMonsterId);
+  //   if (isDefeatedBoss) {
+  //     option.classList.add("boss-defeated");
+  //   }
+  //   option.selected = state.awaitingMonsterSelection
+  //     ? false
+  //     : monster.id === (state.pendingTargetMonsterId ?? state.targetMonsterId);
+  //   elements.monsterSelect.append(option);
+  // }
 
   elements.activeMonsterCard.hidden = !target || state.awaitingMonsterSelection;
   elements.bossKilledCard.hidden = !target || !state.awaitingMonsterSelection;
@@ -398,7 +436,7 @@ function render() {
     if (item) {
       itemColumn.append(
         createTextElement("span", `item-title loot-rarity rarity-${item.rarity.toLowerCase()}`, item.name),
-        createTextElement("span", "muted item-description", `Value ${numberFormat.format(item.value)} · ${lootEffectText(item)}`),
+        createTextElement("span", "muted item-description", `${lootEffectText(item)}`),
       );
       const button = document.createElement("button");
       button.type = "button";
