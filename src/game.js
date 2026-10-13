@@ -789,14 +789,15 @@ function grantKillRewards(state, content, monster, random = Math.random) {
   state.kills[monster.id] = (state.kills[monster.id] ?? 0) + 1;
   grantExperience(state, Math.max(1, Math.floor(monster.xp * stats.xpMultiplier)));
 
-  const lootChance = monster.lootChance ?? 100;
+    const lootChance = monster.lootChance ?? 100;
   
-  // Support both single lootName (string) or multiple lootNames (array)
-  const lootNames = Array.isArray(monster.lootNames)
-    ? monster.lootNames
-    : monster.lootName
-      ? [monster.lootName]
-      : [];
+  // Support single string (with optional comma/newline separation), array, or single lootName
+  const rawLootNames = monster.lootNames ?? monster.lootName ?? [];
+  const lootNames = typeof rawLootNames === "string"
+    ? rawLootNames.split(/[,;\n]+/).map((name) => name.trim()).filter(Boolean)
+    : Array.isArray(rawLootNames)
+      ? rawLootNames
+      : [rawLootNames].filter(Boolean);
 
   if (lootNames.length > 0) {
     const roll = Math.floor(random() * 101);
@@ -809,10 +810,12 @@ function grantKillRewards(state, content, monster, random = Math.random) {
     };
     if (dropped) {
       for (const name of lootNames) {
-        const item = content.loot.find((loot) => loot.name === name);
-        if (item && getTotalItemCount(state, item.id) < 9) {
-          state.lootInventory[item.id] = (state.lootInventory[item.id] ?? 0) + 1;
-          markLootNew(state, item.id);
+        const item = content.loot.find((loot) => loot.name.toLowerCase() === name.toLowerCase());
+        if (item) {
+          if (getTotalItemCount(state, item.id) < 9) {
+            state.lootInventory[item.id] = (state.lootInventory[item.id] ?? 0) + 1;
+            markLootNew(state, item.id);
+          }
         }
       }
     }
