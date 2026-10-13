@@ -18,8 +18,20 @@ export function resetSavedGame(storage = globalThis.localStorage) {
 }
 
 export function createRestoreKey(state, now = Date.now()) {
-  const snapshot = { ...state, updatedAt: now };
-  const bytes = new TextEncoder().encode(JSON.stringify(snapshot));
+  // Map state to a tight array: [level, xp, hp, currencyBalance, gearMap, bagMap, killsMap]
+  const compactState = [
+    state.level,
+    Math.round(state.xp),
+    Math.round(state.hp),
+    state.currencyBalance ?? 0,
+    state.gear ?? {},
+    state.lootInventory ?? {},
+    state.currencyInventory ?? {},
+    state.kills ?? {},
+    now
+  ];
+
+  const bytes = new TextEncoder().encode(JSON.stringify(compactState));
   let binary = "";
   for (const byte of bytes) {
     binary += String.fromCharCode(byte);
@@ -39,13 +51,31 @@ export function restoreStateFromKey(key, content, now = Date.now()) {
     const binary = atob(base64 + "=".repeat((4 - (base64.length % 4)) % 4));
     const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
     const serialized = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    const parsed = JSON.parse(serialized);
+
+    // If it's an array, unpack it into the standard state format
+    if (Array.isArray(parsed)) {
+      const [level, xp, hp, currencyBalance, gear, lootInventory, currencyInventory, kills] = parsed;
+      const baseState = createInitialState(content, now);
+      
+      baseState.level = level;
+      baseState.xp = xp;
+      baseState.hp = hp;
+      baseState.currencyBalance = currencyBalance;
+      baseState.gear = gear;
+      baseState.lootInventory = lootInventory;
+      baseState.currencyInventory = currencyInventory;
+      baseState.kills = kills;
+      baseState.updatedAt = now;
+
+      return parseSavedState(JSON.stringify(baseState), content);
+    }
+
+    // Fallback for older full-object keys
     const state = parseSavedState(serialized, content);
     state.updatedAt = now;
     return state;
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith("The local save")) {
-      throw new Error(`Restore key contains invalid progress: ${error.message}`);
-    }
     throw new Error("The restore key is malformed or contains invalid progress.");
   }
 }
@@ -220,6 +250,8 @@ export function createInitialState(content, now = Date.now()) {
     level: 1,
     xp: 0,
     hp: getPlayerMaxHp(1),
+    autoHealEnabled: false,
+    autoHealThreshold: 100,
     gameOver: false,
     targetMonsterId: firstMonster.id,
     pendingTargetMonsterId: null,
@@ -427,11 +459,18 @@ export function parseSavedState(serialized, content) {
   const repairedNewLootIds = [...new Set(newLootIds.filter((id) => currentLootIds.has(id)))];
   const kills = pruneCountMap(state.kills, new Set(content.monsters.map((monster) => monster.id)), "kill");
 
+  const autoHealEnabled = typeof state.autoHealEnabled === "boolean" ? state.autoHealEnabled : false;
+  const autoHealThreshold = Number.isInteger(state.autoHealThreshold) && state.autoHealThreshold > 0
+    ? state.autoHealThreshold
+    : 100;
+
   return {
     version: SAVE_VERSION,
     level: state.level,
     xp: state.xp,
     hp,
+    autoHealEnabled,
+    autoHealThreshold,
     gameOver,
     targetMonsterId,
     pendingTargetMonsterId,
@@ -716,6 +755,27 @@ function consumeLoot(state, lootId) {
   }
 }
 
+export function processAutoHeal(state, content) {
+  if (!state.autoHealEnabled || state.gameOver || state.hp > state.autoHealThreshold) {
+    return false;
+  }
+
+  const healItems = content.loot.filter((item) => {
+    if (item.slot !== "" || (state.lootInventory[item.id] ?? 0) < 1) return false;
+    const skill = content.skills.find((s) => s.name === item.skill);
+    return skill && skill.effect === "heal";
+  });
+
+  if (healItems.length === 0) {
+    return false;
+  }
+
+  healItems.sort((a, b) => b.effectValue - a.effectValue);
+  const bestHealItem = healItems[0];
+
+  return useLoot(state, content, bestHealItem.id);
+}
+
 export function revivePlayer(state, content, lootId) {
   if (!state.gameOver || state.hp !== 0) {
     return false;
@@ -943,9 +1003,15 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
     state.nextHitDefense = 0;
     state.nextHitDefensePercent = 0;
     state.hp = Math.max(0, state.hp - reducedDamage);
+
+    // Trigger auto-heal check immediately after taking damage
+    processAutoHeal(state, content);
+
     if (state.hp === 0) {
       state.gameOver = true;
       state.attackRemainder = 0;
+      state.soulsLost = state.currencyBalance ?? 0;
+      state.currencyBalance = 0;
       break;
     }
   }

@@ -28,6 +28,11 @@ import {
 } from "./game.js";
 
 const elements = {
+  splashScreen: document.querySelector("#splash-screen"),
+  splashText: document.querySelector("#splash-text"),
+  //splashProgressFill: document.querySelector("#splash-progress-fill"),
+  splashStartBtn: document.querySelector("#splash-start-btn"),
+  game: document.querySelector("#game"),
   status: document.querySelector("#game-status"),
   resetGame: document.querySelector("#reset-game"),
   menuToggle: document.querySelector("#menu-toggle"),
@@ -36,6 +41,8 @@ const elements = {
   profilePage: document.querySelector("#profile-page"),
   helpPage: document.querySelector("#help-page"),
   settingsPage: document.querySelector("#settings-page"),
+  settingsAutoHealEnabled: document.querySelector("#settings-auto-heal-enabled"),
+  settingsAutoHealThreshold: document.querySelector("#settings-auto-heal-threshold"),
   swapInventoryOrder: document.querySelector("#swap-inventory-order"),
   hideStatusText: document.querySelector("#hide-status-text"),
   statusPanel: document.querySelector(".status-panel"),
@@ -51,7 +58,6 @@ const elements = {
   errorPanel: document.querySelector("#error-panel"),
   errorMessage: document.querySelector("#error-message"),
   resetErrorGame: document.querySelector("#reset-error-game"),
-  game: document.querySelector("#game"),
   fightTab: document.querySelector("#fight-tab"),
   prepareTab: document.querySelector("#prepare-tab"),
   craftDialog: document.querySelector("#craft-dialog"),
@@ -300,10 +306,10 @@ function promptSellQuantity(item, maxCount) {
 
 function populateMonsterSelect() {
   elements.monsterMenu.replaceChildren();
-  let currentSelectedText = "Choose a monster...";
+  let currentSelectedText = "Choose an enemy...";
 
   if (state.awaitingMonsterSelection) {
-    currentSelectedText = "Choose a monster...";
+    currentSelectedText = "Choose an enemy...";
   }
 
   const undefeatedBossIndex = content.monsters.findIndex(
@@ -368,6 +374,8 @@ function render() {
   elements.profilePage.hidden = currentPage !== "profile";
   elements.helpPage.hidden = currentPage !== "help";
   elements.settingsPage.hidden = currentPage !== "settings";
+  elements.settingsAutoHealEnabled.checked = Boolean(state.autoHealEnabled);
+  elements.settingsAutoHealThreshold.value = state.autoHealThreshold ?? 100;
   elements.cheatPage.hidden = !DEBUG_ENABLED || currentPage !== "cheat";
   elements.inventoryGrid.classList.toggle("is-shop", state.activeTab === "shop");
   elements.playerStatsPanel.hidden = state.activeTab === "shop";
@@ -411,7 +419,7 @@ function render() {
   if (currentMonster) {
     elements.monsterSelectedLabel.textContent = monsterDisplayName(currentMonster);
   } else if (state.awaitingMonsterSelection) {
-    elements.monsterSelectedLabel.textContent = "Choose a monster...";
+    elements.monsterSelectedLabel.textContent = "Choose an enemy...";
   }
   const target = content.monsters.find((monster) => monster.id === state.targetMonsterId);
   const availableMonsters = content.monsters.filter((monster) => monster.unlock_level <= state.level);
@@ -501,18 +509,22 @@ function render() {
     elements.defeatedCount.textContent = `Defeated: ${numberFormat.format(state.kills[target.id] ?? 0)} monsters`;
     elements.unlockedCount.textContent = `${numberFormat.format(availableMonsters.length)} of ${numberFormat.format(content.monsters.length)} unlocked`;
   } else {
-    elements.monsterSelectedLabel.textContent = "Choose a monster...";
+    elements.monsterSelectedLabel.textContent = "Choose an enemy...";
     elements.defeatedCount.textContent = `Defeated: ${numberFormat.format(Object.values(state.kills).reduce((total, count) => total + count, 0))} monsters`;
     elements.unlockedCount.textContent = `${numberFormat.format(availableMonsters.length)} of ${numberFormat.format(content.monsters.length)} unlocked`;
   }
 
+  const soulsLost = state.soulsLost ?? 0;
   const totalKills = Object.values(state.kills).reduce((total, count) => total + count, 0);
   // Calculate total bosses defeated (monsters with type "boss")
   const totalBossesDefeated = content.monsters
     .filter((monster) => monster.type.toLowerCase() === "boss")
     .reduce((total, boss) => total + (state.kills[boss.id] ?? 0), 0);
 
-  elements.gameOverStats.textContent = `Player level: ${numberFormat.format(state.level)}\n\nEnemies defeated: ${numberFormat.format(totalKills)}\nBosses defeated: ${numberFormat.format(totalBossesDefeated)}`;
+  elements.gameOverStats.textContent = `Player level: ${numberFormat.format(state.level)}
+    Souls lost: ${numberFormat.format(soulsLost)}
+    \nEnemies defeated: ${numberFormat.format(totalKills)}
+    Bosses defeated: ${numberFormat.format(totalBossesDefeated)}`;
   renderShop();
   const reviveItem = content.loot.find((item) => {
     const skill = content.skills.find((candidate) => candidate.name === item.skill);
@@ -525,7 +537,7 @@ function render() {
   elements.startOver.hidden = Boolean(reviveItem);
   if (reviveItem) {
     elements.reviveMessage.textContent = `Have you lost your nerve? ... No? Then go along. No one's stopping you.`;
-    elements.revivePlayer.textContent = `Use ${reviveItem.name} to revive`;
+    elements.revivePlayer.textContent = `Use [${reviveItem.name}] to Revive`;
     elements.revivePlayer.dataset.lootId = reviveItem.id;
   }
 
@@ -1138,9 +1150,9 @@ function selectCombatTab(tabName) {
   renderCombatTab();
   setStatus(tabName === "fight"
     ? state.targetMonsterId === null
-      ? "Choose a monster to begin fighting."
+      ? "Choose an enemy to begin fighting."
       : state.awaitingMonsterSelection
-        ? "Boss defeated. Choose a new monster to continue."
+        ? "Boss defeated! Choose a new enemy to continue."
         : "Fight mode. Combat continues automatically."
     : state.awaitingMonsterSelection
       ? `${tabName === "shop" ? "Shop" : "Prepare"} mode. Combat paused.`
@@ -1257,15 +1269,15 @@ function tick() {
   // Triggered when a Boss is defeated (entering awaiting selection state)
   if (!wasAwaitingMonsterSelection && state.awaitingMonsterSelection) {
     setStatus(state.targetMonsterId === null
-      ? "Fled from combat. Choose a monster when you're ready to fight again."
-      : "Boss defeated! Choose a new monster to continue.");
+      ? "Fled from combat. Choose a enemy when you're ready to fight again."
+      : "Boss defeated! Choose a new enemy to continue.");
     populateMonsterSelect();
     render();
     saveState();
     return; // early out for special case: boss kill
   }
 
-  // Triggered when switching targets after a monster kill
+  // Triggered when switching targets after an enemy kill
   if (previousTargetId !== state.targetMonsterId) {
     const previousTarget = content.monsters.find((monster) => monster.id === previousTargetId);
     const nextTarget = content.monsters.find((monster) => monster.id === state.targetMonsterId);
@@ -1376,6 +1388,20 @@ elements.hideStatusText.addEventListener("change", () => {
   }
 });
 
+elements.settingsAutoHealEnabled.addEventListener("change", () => {
+  state.autoHealEnabled = elements.settingsAutoHealEnabled.checked;
+  localStorage.setItem("idlemon-auto-heal-enabled", String(state.autoHealEnabled));
+  saveState();
+});
+
+elements.settingsAutoHealThreshold.addEventListener("change", () => {
+  const val = parseInt(elements.settingsAutoHealThreshold.value, 10);
+  state.autoHealThreshold = Number.isNaN(val) || val < 1 ? 1 : val;
+  elements.settingsAutoHealThreshold.value = state.autoHealThreshold;
+  localStorage.setItem("idlemon-auto-heal-threshold", String(state.autoHealThreshold));
+  saveState();
+});
+
 document.querySelectorAll(".return-to-game").forEach((button) => {
   button.addEventListener("click", () => showPage("game"));
 });
@@ -1439,20 +1465,82 @@ elements.resetErrorGame.addEventListener("click", resetAndReload);
 
 async function startGame() {
   try {
+    // Keep main game hidden initially while loading assets
+    elements.game.hidden = true;
+    elements.errorPanel.hidden = true;
+    elements.menuToggle.hidden = true;
+
+    // Check if a save file already exists in localStorage
+    const hasExistingSave = localStorage.getItem(SAVE_KEY) !== null;
+    const introText = [
+      "Thou who art Undead, art chosen...",
+      "In thine exodus from the Undead Asylum,",
+      "maketh pilgrimage to the land of Ancient Lords...",
+      "When thou ringeth the Bell of Awakening,",
+      "the fate of the Undead thou shalt know..."
+    ];
+    elements.splashText.innerHTML = hasExistingSave
+      ? "Humanity Restored"
+      : introText.join("<br>");
+
+    // Helper function to handle fading out and revealing the game
+    const dismissSplash = () => {
+      elements.splashScreen.classList.add("fade-out");
+      window.setTimeout(() => {
+        elements.splashScreen.hidden = true;
+        elements.errorPanel.hidden = true;
+        elements.game.hidden = false;
+        elements.menuToggle.hidden = false;
+        elements.resetGame.hidden = false;
+        elements.cheatMenuItem.hidden = !DEBUG_ENABLED;
+      }, 1000);
+    };
+
+    const splashWaitTime = 2000;
+    if (hasExistingSave) {
+      // Auto-progress for returning players (2 seconds)
+      // elements.splashProgressFill.style.transition = `transform ${splashWaitTime}ms linear`;
+      // elements.splashProgressFill.getBoundingClientRect();
+      // elements.splashProgressFill.style.transform = "scaleX(0)";
+
+      window.setTimeout(dismissSplash, splashWaitTime);
+    } else {
+      // New game: Show START button, wait for click
+      elements.splashStartBtn.hidden = true;
+      
+      window.setTimeout(() => {
+        elements.splashStartBtn.hidden = false; // Make the button visible
+
+        elements.splashStartBtn.onclick = () => {
+          elements.splashStartBtn.disabled = true;
+          dismissSplash();
+        };
+      }, splashWaitTime+3000);
+    }
+
     content = await loadGameContent(SHEET_CSV_URLS);
     try {
       elements.swapInventoryOrder.checked = localStorage.getItem(INVENTORY_ORDER_KEY) === "true";
       const savedHideStatusText = localStorage.getItem(HIDE_STATUS_TEXT_KEY);
       elements.hideStatusText.checked = savedHideStatusText === null || savedHideStatusText === "true";
+      
+      elements.settingsAutoHealEnabled.checked = localStorage.getItem("idlemon-auto-heal-enabled") === "true";
+      state.autoHealEnabled = elements.settingsAutoHealEnabled.checked;
+      const savedThreshold = localStorage.getItem("idlemon-auto-heal-threshold");
+      if (savedThreshold !== null) {
+        const parsed = parseInt(savedThreshold, 10);
+        if (!Number.isNaN(parsed) && parsed > 0) {
+          state.autoHealThreshold = parsed;
+          elements.settingsAutoHealThreshold.value = parsed;
+        }
+      }
+      
       const savedGameSpeed = Number(localStorage.getItem(GAME_SPEED_KEY));
       gameSpeed = GAME_SPEEDS.includes(savedGameSpeed) ? savedGameSpeed : 1;
     } catch (error) {
       setStatus(`Could not load this setting: ${error.message}`);
     }
-    elements.gameSpeed.value = String(GAME_SPEEDS.indexOf(gameSpeed));
-    elements.gameSpeedValue.value = `${gameSpeed}×`;
-    elements.inventoryGrid.classList.toggle("is-swapped", elements.swapInventoryOrder.checked);
-    elements.statusPanel.hidden = elements.hideStatusText.checked;
+
     const now = Date.now();
     const restoreKey = window.location.hash;
     const isRestore = restoreKey.startsWith("#save=");
@@ -1465,6 +1553,16 @@ async function startGame() {
         : parseSavedState(serialized, content);
     }
 
+    // Apply the settings
+    elements.inventoryGrid.classList.toggle("is-swapped", elements.swapInventoryOrder.checked);
+    elements.statusPanel.hidden = elements.hideStatusText.checked;
+
+    elements.settingsAutoHealEnabled.checked = Boolean(state.autoHealEnabled);
+    elements.settingsAutoHealThreshold.value = state.autoHealThreshold ?? 100;
+
+    elements.gameSpeed.value = String(GAME_SPEEDS.indexOf(gameSpeed));
+    elements.gameSpeedValue.value = `${gameSpeed}×`;
+
     const offlineSeconds = isRestore || serialized === null
       || state.awaitingMonsterSelection
       ? 0
@@ -1473,11 +1571,11 @@ async function startGame() {
     if (offlineSeconds >= 1) {
       advanceGame(state, content, offlineSeconds * gameSpeed);
       setStatus(state.awaitingMonsterSelection && !wasAwaitingMonsterSelection
-        ? "Boss defeated! Choose a new monster to continue."
-        : `Welcome back. ${numberFormat.format(offlineSeconds / 60)} minutes of offline progress applied.`);
+        ? "Boss defeated! Choose a new enemy to continue."
+        : `Welcome back, chosen undead.`);
     } else {
       setStatus(state.awaitingMonsterSelection
-        ? "Boss defeated. Choose a new monster to continue."
+        ? "Boss defeated! Choose a new enemy to continue."
         : "Combat and rewards happen automatically.");
     }
     const startupWarnings = [...(state.recoveryWarnings ?? []), ...content.warnings];
@@ -1492,13 +1590,9 @@ async function startGame() {
     state.updatedAt = now;
     lastTickAt = now;
     renderCombatTab();
-    elements.errorPanel.hidden = true;
-    elements.game.hidden = false;
-    elements.menuToggle.hidden = false;
-    elements.resetGame.hidden = !DEBUG_ENABLED;
-    elements.cheatMenuItem.hidden = !DEBUG_ENABLED;
     renderCheatLoot();
     render();
+
     const saved = saveState();
     if (isRestore && saved) {
       window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
@@ -1506,6 +1600,7 @@ async function startGame() {
     window.setInterval(tick, 1000);
     window.addEventListener("pagehide", saveState);
   } catch (error) {
+    if (elements.splashScreen) elements.splashScreen.hidden = true;
     showError(error.message);
   }
 }
