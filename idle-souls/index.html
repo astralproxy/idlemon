@@ -8,6 +8,19 @@
     <link rel="stylesheet" href="./styles.css">
   </head>
   <body>
+    <div id="splash-screen" class="splash-screen">
+      <div class="splash-content">
+        <img src="art/soul.webp" alt="Idle Souls" class="splash-image" />
+        <h1 class="splash-title">Idle Souls</h1>
+        <p id="splash-text">Welcome, chosen one...</p>
+        <!--PROGRESS BAR
+        <div class="splash-progress-bar">
+          <div id="splash-progress-fill" class="splash-progress-fill"></div>
+        </div>-->
+        <button id="splash-start-btn" class="splash-start-btn" hidden>START</button>
+      </div>
+    </div>
+
     <main class="page">
       <header class="page-header">
         <div>
@@ -54,7 +67,7 @@
         </section>
         <section id="monster-section" class="panel combat-panel monster-panel">
           <div class="monster-select-row">
-            <label for="monster-select">Fighting...</label>
+            <label for="monster-select">Target: </label>
             <!--<select id="monster-select"></select>-->
             <div class="custom-dropdown" id="monster-dropdown">
               <!-- The button that looks like the closed select box -->
@@ -206,14 +219,16 @@
           </div>
           <button class="button secondary return-to-game" type="button">Back to game</button>
         </div>
-        <p class="muted">Your restore key contains a snapshot of your progress. Keep it private; anyone with the key can restore that snapshot.</p>
-        <label for="restore-key">Progress restore key</label>
-        <textarea id="restore-key" class="restore-key" rows="5" readonly spellcheck="false"></textarea>
-        <div class="profile-actions">
+        <p class="muted">A snapshot of your progress is saved constantly.</p>
+        <p class="muted restore-instructions">To restore on another machine, replace the part of teh game URL after <code>#</code> with this key, and hit Enter. The game will import the snapshot and save it in that browser.</p>
+        <label for="restore-key">Progress restoration key:</label>
+        <textarea id="restore-key" class="restore-key" rows="2" readonly spellcheck="false" style="height: 5em; min-height: unset; resize: none;"></textarea>
+        <div class="profile-actions" style="display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: space-between !important; width: 100%; margin-top: 8px;">
           <button id="copy-restore-key" class="button" type="button">Copy restore key</button>
-          <p id="copy-status" class="muted" role="status" aria-live="polite"></p>
+          <p id="copy-status" class="muted" role="status" aria-live="polite" style="margin: 0; text-align: right; flex-grow: 1;"></p>
         </div>
-        <p class="muted restore-instructions">To restore on another machine, open IdleMon, replace the part of its address after <code>#</code> with this key, and load that address. The game will import the snapshot and save it in that browser.</p>
+        <br><hr><br>
+        <p>DANGER ZONE: Push this button to completely reset your game.</p>
         <button id="reset-game" class="button reset-button" type="button" hidden>Reset</button>
       </section>
 
@@ -226,14 +241,16 @@
           <button class="button secondary return-to-game" type="button">Back to game</button>
         </div>
         <div class="help-copy">
-          <p>Choose a monster from the target list. Your character attacks automatically once per game-second; change Game Speed in Settings to adjust how quickly game time passes. If you choose a different monster during a fight, your character finishes the current monster before switching. Monsters deal their listed damage between player attacks; armor reduces incoming damage.</p>
-          <p>Loot goes into your Bag. Equip an item to an available Equipment slot to activate its associated skill; equipping another item in that slot returns the previous item to your Bag. Damage starts at 1 and increases by the sum of the equipped items' values. Attack and Magic skills both deal damage.</p>
-          <p>Use an item with the Flee skill to abandon the current monster and pause in Prepare. Choose a monster after returning to Fight to resume combat.</p>
-          <p>Skills activate only when their listed level is reached and their associated loot is equipped. Defend effects can reduce damage by a flat amount or percentage, and Heal effects can restore a flat amount or percentage of your max HP. Monster health is set by its HP value; experience rewards are based on monster level.</p>
-          <p>Manually switching to Prepare or Shop does not pause combat. Defeating a Boss pauses combat and opens the Shop. Choose a different monster to resume.</p>
+          <p>Choose an enemy from the target list. Your character attacks automatically once per game-second. If you choose a different enemy during a fight, you must finish the current fight before switching.</p>
+          <p>All Loot goes into your Bag. Equip an item to an available Equipment slot to activate its associated skill; equipping another item in that slot returns the previous item to your Bag.</p>
+          <hr>
+          <p>Enemies deal their listed damage between player attacks; armor reduces incoming damage [DEF - damage].</p>
           <p>Player max HP starts at 400 and increases by 15 per level-up, up to 1,900. At zero player health, combat pauses and a Game Over screen shows your total monsters defeated. A Revive skill item in your Bag can restore full HP and continue the fight.</p>
-          <p>Combat also pauses while the main menu is open or while you are viewing Profile, Help, or another menu page.</p>
-          <p>Progress is saved in this browser. Use the Profile page to copy a restore key and bring a progress snapshot to another machine. Offline progress is capped at eight hours.</p>
+          <hr>
+          <p>Only dying or defeating a Boss pauses combat. Manually switching to Prepare or Shop does not pause. Choose a new enemy to resume.</p>
+          <p>Combat also pauses while the Menu is open or while you are viewing a menu page like Profile or Help</p>
+          <hr>
+          <p>Progress is saved in this browser. Use the Profile page to copy a key to bring your progress to another machine.</p>
         </div>
       </section>
 
@@ -252,6 +269,18 @@
           <input id="hide-status-text" type="checkbox" checked>
           <span>Hide status text</span>
         </label>
+        <hr>
+        <div class="settings-grid">
+          <label class="setting-item">
+            <input type="checkbox" id="settings-auto-heal-enabled" />
+            <span>Auto-Heal</span>
+          </label>
+          <label class="setting-item">
+            <span>Threshold (HP):</span>
+            <input type="number" id="settings-auto-heal-threshold" min="1" style="width: 80px;" />
+          </label>
+        </div>
+        <hr>
         <div class="game-speed-setting">
           <label for="game-speed">Game Speed: <output id="game-speed-value" for="game-speed">1×</output></label>
           <input id="game-speed" type="range" min="0" max="2" step="1" value="0" list="game-speed-options">
