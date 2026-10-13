@@ -28,8 +28,19 @@ body {
   min-height: 100vh;
   background:
     linear-gradient(rgb(18 18 18 / 76%), rgb(18 18 18 / 82%)),
-    url("./art/dungeon-wall.jpg") center / cover fixed,
+    url("./art/background.jpg") center / cover fixed,
     #202020;
+}
+
+@keyframes splashBlurFadeIn {
+  0% {
+    opacity: 0;
+    filter: blur(12px);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0px);
+  }
 }
 
 .splash-screen {
@@ -44,11 +55,13 @@ body {
   color: #ffffff;
   text-align: center;
   opacity: 1;
-  transition: opacity 0.5s ease-out;
+  transition: opacity 0.5s ease-out, filter 0.5s ease-out;
+  animation: splashBlurFadeIn 1.5s ease-out forwards;
 }
 
 .splash-screen.fade-out {
   opacity: 0;
+  filter: blue(8px);
   pointer-events: none;
 }
 

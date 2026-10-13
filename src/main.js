@@ -336,14 +336,10 @@ function populateMonsterSelect() {
       }
       const isDefeatedBoss = isBoss && (state.kills[monster.id] ?? 0) > 0;
       const isDisabled = isDefeatedBoss
-        || monster.unlock_level > state.level
         || (state.awaitingMonsterSelection && monster.id === state.targetMonsterId);
       
       const displayName = monsterDisplayName(monster);
       const monsterLabel = `${displayName}`;
-      /*monster.unlock_level <= state.level
-        ? `${displayName} (LVL ${monster.level})`
-        : `${displayName} (LVL ${monster.unlock_level})`;*/
       item.textContent = isPendingTarget ? `${monsterLabel} (after current monster)` : monsterLabel;
 
       if (isDefeatedBoss) {
@@ -422,7 +418,7 @@ function render() {
     elements.monsterSelectedLabel.textContent = "Choose an enemy...";
   }
   const target = content.monsters.find((monster) => monster.id === state.targetMonsterId);
-  const availableMonsters = content.monsters.filter((monster) => monster.unlock_level <= state.level);
+  const availableMonsters = content.monsters;//.filter((monster) => monster.unlock_level <= state.level);
 
   elements.activeMonsterCard.hidden = !target || state.awaitingMonsterSelection;
   elements.bossKilledCard.hidden = !target || !state.awaitingMonsterSelection;
@@ -438,7 +434,7 @@ function render() {
   elements.prepareMonster.hidden = !target || state.activeTab !== "prepare" || state.awaitingMonsterSelection;
   elements.killCount.hidden = !target || state.awaitingMonsterSelection;
   if (target) {
-    const lootRewards = [...target.lootNames];    
+    const lootRewards = state.lastDroppedLootNames ?? [];
     const rawMaterials = target.materialNames ?? target.currencyNames ?? [];
     const bossNames = rawMaterials.filter((name) => {
       const item = content.materials.find((m) => m.name === name);
@@ -1437,7 +1433,7 @@ elements.copyRestoreKey.addEventListener("click", async () => {
 elements.resetGame.hidden = !DEBUG_ENABLED;
 elements.cheatMenuItem.hidden = !DEBUG_ENABLED;
 function restartGame() {
-  if (!window.confirm("Start over and clear all IdleMon progress in this browser?")) {
+  if (!window.confirm("Start over and clear all progress in this browser?")) {
     return;
   }
 
@@ -1483,41 +1479,6 @@ async function startGame() {
       ? "Humanity Restored"
       : introText.join("<br>");
 
-    // Helper function to handle fading out and revealing the game
-    const dismissSplash = () => {
-      elements.splashScreen.classList.add("fade-out");
-      window.setTimeout(() => {
-        elements.splashScreen.hidden = true;
-        elements.errorPanel.hidden = true;
-        elements.game.hidden = false;
-        elements.menuToggle.hidden = false;
-        elements.resetGame.hidden = false;
-        elements.cheatMenuItem.hidden = !DEBUG_ENABLED;
-      }, 1000);
-    };
-
-    const splashWaitTime = 2000;
-    if (hasExistingSave) {
-      // Auto-progress for returning players (2 seconds)
-      // elements.splashProgressFill.style.transition = `transform ${splashWaitTime}ms linear`;
-      // elements.splashProgressFill.getBoundingClientRect();
-      // elements.splashProgressFill.style.transform = "scaleX(0)";
-
-      window.setTimeout(dismissSplash, splashWaitTime);
-    } else {
-      // New game: Show START button, wait for click
-      elements.splashStartBtn.hidden = true;
-      
-      window.setTimeout(() => {
-        elements.splashStartBtn.hidden = false; // Make the button visible
-
-        elements.splashStartBtn.onclick = () => {
-          elements.splashStartBtn.disabled = true;
-          dismissSplash();
-        };
-      }, splashWaitTime+3000);
-    }
-
     content = await loadGameContent(SHEET_CSV_URLS);
     try {
       elements.swapInventoryOrder.checked = localStorage.getItem(INVENTORY_ORDER_KEY) === "true";
@@ -1541,15 +1502,14 @@ async function startGame() {
       setStatus(`Could not load this setting: ${error.message}`);
     }
 
-    const now = Date.now();
     const restoreKey = window.location.hash;
     const isRestore = restoreKey.startsWith("#save=");
     const serialized = localStorage.getItem(SAVE_KEY);
     if (isRestore) {
-      state = restoreStateFromKey(restoreKey, content, now);
+      state = restoreStateFromKey(restoreKey, content, Date.now());
     } else {
       state = serialized === null
-        ? createInitialState(content, now)
+        ? createInitialState(content, Date.now())
         : parseSavedState(serialized, content);
     }
 
@@ -1563,42 +1523,73 @@ async function startGame() {
     elements.gameSpeed.value = String(GAME_SPEEDS.indexOf(gameSpeed));
     elements.gameSpeedValue.value = `${gameSpeed}×`;
 
-    const offlineSeconds = isRestore || serialized === null
-      || state.awaitingMonsterSelection
-      ? 0
-      : Math.min(MAX_OFFLINE_SECONDS, Math.max(0, (now - state.updatedAt) / 1000));
-    const wasAwaitingMonsterSelection = state.awaitingMonsterSelection;
-    if (offlineSeconds >= 1) {
-      advanceGame(state, content, offlineSeconds * gameSpeed);
-      setStatus(state.awaitingMonsterSelection && !wasAwaitingMonsterSelection
-        ? "Boss defeated! Choose a new enemy to continue."
-        : `Welcome back, chosen undead.`);
+    // Helper function to handle fading out, revealing the game, and starting the loop
+    const dismissSplash = () => {
+      elements.splashScreen.classList.add("fade-out");
+      window.setTimeout(() => {
+        elements.splashScreen.hidden = true;
+        elements.errorPanel.hidden = true;
+        elements.game.hidden = false;
+        elements.menuToggle.hidden = false;
+        elements.resetGame.hidden = false;
+        elements.cheatMenuItem.hidden = !DEBUG_ENABLED;
+
+        const now = Date.now();
+        const offlineSeconds = isRestore || serialized === null
+          || state.awaitingMonsterSelection
+          ? 0
+          : Math.min(MAX_OFFLINE_SECONDS, Math.max(0, (now - state.updatedAt) / 1000));
+        const wasAwaitingMonsterSelection = state.awaitingMonsterSelection;
+        if (offlineSeconds >= 1) {
+          advanceGame(state, content, offlineSeconds * gameSpeed);
+          setStatus(state.awaitingMonsterSelection && !wasAwaitingMonsterSelection
+            ? "Boss defeated! Choose a new enemy to continue."
+            : `Welcome back, chosen undead.`);
+        } else {
+          setStatus(state.awaitingMonsterSelection
+            ? "Boss defeated! Choose a new enemy to continue."
+            : "Combat and rewards happen automatically.");
+        }
+        const startupWarnings = [...(state.recoveryWarnings ?? []), ...content.warnings];
+        if (startupWarnings.length > 0) {
+          const warningSummary = startupWarnings.slice(0, 2).join(" ");
+          const remainingWarnings = startupWarnings.length - 2;
+          setStatus(`${warningSummary}${remainingWarnings > 0 ? ` And ${remainingWarnings} more sheet issue(s) were repaired.` : ""}`);
+        }
+
+        populateMonsterSelect();
+
+        state.updatedAt = now;
+        lastTickAt = now;
+        renderCombatTab();
+        renderCheatLoot();
+        render();
+
+        const saved = saveState();
+        if (isRestore && saved) {
+          window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+        }
+        window.setInterval(tick, 1000);
+        window.addEventListener("pagehide", saveState);
+      }, 1000);
+    };
+
+    const splashWaitTime = 2000;
+    if (hasExistingSave) {
+      window.setTimeout(dismissSplash, splashWaitTime);
     } else {
-      setStatus(state.awaitingMonsterSelection
-        ? "Boss defeated! Choose a new enemy to continue."
-        : "Combat and rewards happen automatically.");
-    }
-    const startupWarnings = [...(state.recoveryWarnings ?? []), ...content.warnings];
-    if (startupWarnings.length > 0) {
-      const warningSummary = startupWarnings.slice(0, 2).join(" ");
-      const remainingWarnings = startupWarnings.length - 2;
-      setStatus(`${warningSummary}${remainingWarnings > 0 ? ` And ${remainingWarnings} more sheet issue(s) were repaired.` : ""}`);
-    }
+      // New game: Show START button, wait for click
+      elements.splashStartBtn.hidden = true;
+      
+      window.setTimeout(() => {
+        elements.splashStartBtn.hidden = false; // Make the button visible
 
-    populateMonsterSelect();
-
-    state.updatedAt = now;
-    lastTickAt = now;
-    renderCombatTab();
-    renderCheatLoot();
-    render();
-
-    const saved = saveState();
-    if (isRestore && saved) {
-      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+        elements.splashStartBtn.onclick = () => {
+          elements.splashStartBtn.disabled = true;
+          dismissSplash();
+        };
+      }, splashWaitTime+3000);
     }
-    window.setInterval(tick, 1000);
-    window.addEventListener("pagehide", saveState);
   } catch (error) {
     if (elements.splashScreen) elements.splashScreen.hidden = true;
     showError(error.message);
