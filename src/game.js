@@ -801,7 +801,15 @@ function grantKillRewards(state, content, monster, random = Math.random) {
   grantExperience(state, Math.max(1, Math.floor(monster.xp * stats.xpMultiplier)));
 
   const lootChance = monster.lootChance ?? 100;
-  if (monster.lootNames.length > 0) {
+  
+  // Support both single lootName (string) or multiple lootNames (array)
+  const lootNames = Array.isArray(monster.lootNames)
+    ? monster.lootNames
+    : monster.lootName
+      ? [monster.lootName]
+      : [];
+
+  if (lootNames.length > 0) {
     const roll = Math.floor(random() * 101);
     const dropped = lootChance >= 100 || roll < lootChance;
     state.lastLootCheck = {
@@ -811,7 +819,7 @@ function grantKillRewards(state, content, monster, random = Math.random) {
       dropped,
     };
     if (dropped) {
-      for (const name of monster.lootNames) {
+      for (const name of lootNames) {
         const item = content.loot.find((loot) => loot.name === name);
         if (item && getTotalItemCount(state, item.id) < 9) {
           state.lootInventory[item.id] = (state.lootInventory[item.id] ?? 0) + 1;
@@ -827,15 +835,48 @@ function grantKillRewards(state, content, monster, random = Math.random) {
       dropped: false,
     };
   }
+
   const materialCount = monster.materialCount ?? 1;
   const materialChance = monster.materialChance ?? 100;
-  const materialNames = monster.materialNames ?? monster.currencyNames ?? [];
+  
+  // Support multiple material/currency names safely
+  const materialNames = monster.materialNames 
+    ?? monster.currencyNames 
+    ?? (monster.materialName ? [monster.materialName] : []);
+
   const hasMaterialDrop = materialChance >= 100
     || (materialCount > 0 && materialNames.length > 0 && Math.floor(random() * 101) < materialChance);
+  
   if (materialCount > 0 && hasMaterialDrop) {
+    const bossMaterials = [];
+
     for (const name of materialNames) {
       const item = content.materials.find((material) => material.name === name);
-      state.currencyInventory[item.id] = (state.currencyInventory[item.id] ?? 0) + materialCount;
+      if (!item) continue;
+
+      const isBoss = (item.notes ?? "").trim().toLowerCase() === "boss";
+
+      if (isBoss) {
+        bossMaterials.push(item);
+      } else {
+        // Direct "Soul" materials directly to main currency balance
+        if (item.name.trim().toLowerCase() === "soul") {
+          const soulValue = item.value > 0 ? item.value : 1;
+          state.currencyBalance = (state.currencyBalance ?? 0) + (materialCount * soulValue);
+        } else {
+          state.currencyInventory[item.id] = (state.currencyInventory[item.id] ?? 0) + materialCount;
+        }
+      }
+    }
+
+    // If there are boss materials, randomly select exactly one to drop
+    if (bossMaterials.length > 0) {
+      const selectedBossItem = bossMaterials[Math.floor(Math.random() * bossMaterials.length)];
+      state.currencyInventory[selectedBossItem.id] = (state.currencyInventory[selectedBossItem.id] ?? 0) + 1;
+      // Save the specific chosen item name for UI display
+      state.lastBossDrop = selectedBossItem.name;
+    } else {
+      state.lastBossDrop = null;
     }
   }
 }

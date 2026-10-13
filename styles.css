@@ -508,6 +508,10 @@ h3 {
   white-space: pre-line;
 }
 
+.boss-material-title {
+  color: #fff176; /* Light yellow accent */
+}
+
 .boss-shop-hint {
   display: inline-block;
   width: fit-content;
@@ -870,7 +874,7 @@ button:focus-visible {
 
 .list-item.loot-item {
   display: grid;
-  grid-template-columns: 65% 60px 1fr; /* 1st column takes remaining space, 2nd column holds the badge at a fixed width, 3rd holds the button */
+  grid-template-columns: 60% 40px 1fr; /* 1st column takes remaining space, 2nd column holds the badge at a fixed width, 3rd holds the button */
   align-items: center;
   gap: 12px;
 }
@@ -884,12 +888,34 @@ button:focus-visible {
   justify-self: center;
 }
 
-/* Ensure shop actions align nicely inside the 3rd grid column */
+/* Container for shop sale actions */
 .list-item.loot-item .bag-sale-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
   justify-content: flex-end;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Stacks Value text directly above the Sell button */
+.bag-sale-stacked {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.bag-sale-value {
+  color: var(--accent);
+  font-size: 0.78rem;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .item-details {
@@ -914,6 +940,20 @@ button:focus-visible {
 
 .cheat-loot-list {
   margin-top: 14px;
+}
+
+.crafted-loot-item {
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.crafted-loot-item:hover {
+  border-color: var(--accent);
 }
 
 .loot-item.is-new-loot {

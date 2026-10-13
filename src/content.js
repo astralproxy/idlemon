@@ -66,6 +66,8 @@ const SCHEMAS = {
         name,
         value: number(row.Value, "Value", 0),
         uses: requiredText(row.Uses, "Uses"),
+        crafted: row.Crafted?.trim() ?? "",
+        notes: row.Notes?.trim() ?? "",
       };
     },
   },
