@@ -791,10 +791,9 @@ function grantKillRewards(state, content, monster, random = Math.random) {
 
     const lootChance = monster.lootChance ?? 100;
   
-  // Support single string (with optional comma/newline separation), array, or single lootName
   const rawLootNames = monster.lootNames ?? monster.lootName ?? [];
   const lootNames = typeof rawLootNames === "string"
-    ? rawLootNames.split(/[,;\n]+/).map((name) => name.trim()).filter(Boolean)
+    ? rawLootNames.replace(/^["']|["']$/g, "").split(/,\s*/).map((name) => name.trim()).filter(Boolean)
     : Array.isArray(rawLootNames)
       ? rawLootNames
       : [rawLootNames].filter(Boolean);
