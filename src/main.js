@@ -1433,9 +1433,9 @@ elements.copyRestoreKey.addEventListener("click", async () => {
 elements.resetGame.hidden = !DEBUG_ENABLED;
 elements.cheatMenuItem.hidden = !DEBUG_ENABLED;
 function restartGame() {
-  if (!window.confirm("Start over and clear all progress in this browser?")) {
-    return;
-  }
+  // if (!window.confirm("Start over and clear all progress in this browser?")) {
+  //   return;
+  // }
 
   resetAndReload();
 }
