@@ -24,7 +24,11 @@ function slug(value) {
 }
 
 function references(value, separator = /[;|]/) {
-  return value.trim() === "" ? [] : value.split(separator).map((reference) => reference.trim()).filter(Boolean);
+  if (typeof value !== "string" || value.trim() === "") {
+    return [];
+  }
+  const cleaned = value.trim().replace(/^["']|["']$/g, "");
+  return cleaned.split(/,\s*|[;|]/).map((reference) => reference.trim()).filter(Boolean);
 }
 
 const SCHEMAS = {

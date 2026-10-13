@@ -154,7 +154,7 @@ const elements = {
 };
 
 const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
-const GEAR_SLOTS = ["Hand", "Offhand", "Head", "Chest", "Hands", "Legs"];
+const GEAR_SLOTS = ["Hand", "Offhand", "Ring", "Head", "Chest", "Arms", "Legs"];
 const QUICK_ITEM_IGNORED_SKILLS = new Set(["revive"]);
 const INVENTORY_ORDER_KEY = "idlemon-inventory-order-swapped";
 const HIDE_STATUS_TEXT_KEY = "idlemon-hide-status-text";
@@ -638,10 +638,10 @@ function render() {
     button.type = "button";
     button.className = "button";
     button.textContent = isShop ? "Sell" : item.slot ? "Equip" : "Use";
-    button.disabled = !isShop && (
-      (item.slot === "" && !canUseLoot(state, content, item.id))
-      || (item.slot === "Offhand" && isTwoHandEquipped(state, content))
-    );
+    button.disabled = isShop
+      ? item.value === 0
+      : (item.slot === "" && !canUseLoot(state, content, item.id))
+        || (item.slot === "Offhand" && isTwoHandEquipped(state, content));
     if (item.slot === "Offhand" && isTwoHandEquipped(state, content)) {
       button.title = "Unequip the Two-Hand item before equipping Offhand gear.";
     }
@@ -880,7 +880,9 @@ function render() {
         button.type = "button";
         button.className = "button";
         button.textContent = "Sell";
+        button.disabled = item.value === 0;
         button.addEventListener("click", async () => {
+          if (item.value === 0) return;
           const count = state.currencyInventory[item.id];
           if (count > 3) {
             const quantityToSell = await promptSellQuantity(item, count);
