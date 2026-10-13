@@ -237,7 +237,8 @@ function markLootNew(state, lootId) {
 }
 
 function unlockedMonsters(state, content) {
-  return content.monsters.filter((monster) => monster.unlock_level <= state.level);
+  return content.monsters; // no filter
+  //return content.monsters.filter((monster) => monster.unlock_level <= state.level);
 }
 
 export function createInitialState(content, now = Date.now()) {
@@ -296,11 +297,8 @@ export function parseSavedState(serialized, content) {
   let monsterHp = state.monsterHp;
   let awaitingMonsterSelection = state.awaitingMonsterSelection ?? false;
   const recoveryWarnings = [];
-  if (targetMonsterId !== null && (!target || state.level < target.unlock_level)) {
+  if (targetMonsterId !== null && !target) {
     target = unlockedMonsters(state, content)[0];
-    if (!target) {
-      throw new Error("No monster is available for the saved player level.");
-    }
     targetMonsterId = target.id;
     monsterHp = target.health;
     awaitingMonsterSelection = false;
@@ -310,7 +308,7 @@ export function parseSavedState(serialized, content) {
     ? null
     : content.monsters.find((monster) => monster.id === pendingTargetMonsterId);
   if (pendingTargetMonsterId !== null
-      && (!pendingTarget || pendingTarget.id === target?.id || pendingTarget.unlock_level > state.level)) {
+      && (!pendingTarget || pendingTarget.id === target?.id)) {
     pendingTargetMonsterId = null;
   }
   if (!isNonNegativeNumber(state.xp)) {
@@ -676,7 +674,7 @@ export function useLoot(state, content, lootId, random = Math.random) {
   else if (skill.effect === "damage_flat")
   {
     const target = content.monsters.find((monster) => monster.id === state.targetMonsterId);
-    if (!target || target.unlock_level > state.level) {
+    if (!target) {
       throw new Error("The selected monster is unavailable.");
     }
     state.monsterHp -= item.effectValue;
@@ -743,8 +741,9 @@ export function canUseLoot(state, content, lootId) {
   }
   if (skill.effect === "damage_flat") {
     const target = content.monsters.find((monster) => monster.id === state.targetMonsterId);
-    return Boolean(target && target.unlock_level <= state.level);
+    return Boolean(target);
   }
+  
   return skill.effect === "defense_flat";
 }
 
@@ -811,7 +810,7 @@ function findReviveSkill(item, content) {
 
 export function selectMonster(state, content, monsterId) {
   const monster = content.monsters.find((candidate) => candidate.id === monsterId);
-  if (!monster || monster.unlock_level > state.level) {
+  if (!monster) {
     throw new Error("That monster is not unlocked.");
   }
   if (monster.type.toLowerCase() === "boss" && (state.kills[monster.id] ?? 0) > 0) {
@@ -858,6 +857,7 @@ function grantKillRewards(state, content, monster, random = Math.random) {
       ? rawLootNames
       : [rawLootNames].filter(Boolean);
 
+  const droppedLootNames = [];
   if (lootNames.length > 0) {
     const roll = Math.floor(random() * 101);
     const dropped = lootChance >= 100 || roll < lootChance;
@@ -875,6 +875,7 @@ function grantKillRewards(state, content, monster, random = Math.random) {
             state.lootInventory[item.id] = (state.lootInventory[item.id] ?? 0) + 1;
             markLootNew(state, item.id);
           }
+          droppedLootNames.push(item.name);
         }
       }
     }
@@ -886,6 +887,7 @@ function grantKillRewards(state, content, monster, random = Math.random) {
       dropped: false,
     };
   }
+  state.lastDroppedLootNames = droppedLootNames;
 
   const materialCount = monster.materialCount ?? 1;
   const materialChance = monster.materialChance ?? 100;
@@ -947,7 +949,7 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
   }
 
   let target = content.monsters.find((monster) => monster.id === state.targetMonsterId);
-  if (!target || target.unlock_level > state.level) {
+  if (!target) {
     throw new Error("The selected monster is unavailable in the current sheet.");
   }
 

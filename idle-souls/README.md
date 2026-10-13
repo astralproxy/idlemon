@@ -1,77 +1,10 @@
-# Idlemon
+# Idle Souls
 
-Idlemon is a small, static browser idle game. Choose a monster to target; attacks, experience, loot, Materials, and level-ups happen automatically. The game does not have an attack button but has a few other ways for you to control the game's flow.
+Idle Souls is a small browser-based idle game. Pick enemies to fight and kill them to gain experience, loot, and materials to get stronger. The game does not have an attack button but has a few other ways for you to control the game's flow.
 
-Play the game online at: https://astralproxy.github.io/idlemon/
+Play the game online at: https://astralproxy.github.io/idlemon/idle-souls
 
-Copy this spreadsheet to make your own! https://docs.google.com/spreadsheets/d/1UqTGL5B_vqxDlY_2KNFmEFieJSYKh2h38o8x-rUshxI/edit?usp=sharing
-
-## Connect a published Google Sheet
-
-The game reads skills, monsters, loot, and Materials from published worksheet CSV URLs in one Google spreadsheet. It does not bundle fallback game definitions. If the URLs are missing or the sheet data is invalid/unavailable, the game displays an error instead of starting with substitute content.
-
-1. Create one Google spreadsheet with worksheets named `Skills`, `Monsters`, `Loot`, and `Materials`.
-2. Add the exact headers shown below in row 1. Monster `Loot` and `Materials` entries should match names in their respective worksheets; loot `Skill` entries should match a skill name.
-3. Publish the spreadsheet to the web and make each worksheet available as CSV. For each worksheet, copy its published CSV URL. A typical published URL has the form `https://docs.google.com/spreadsheets/d/e/PUBLISHED_ID/pub?gid=WORKSHEET_GID&single=true&output=csv`.
-4. Paste each worksheet URL into the matching field in [config.js](./config.js). The URLs for the supplied published spreadsheet are already configured.
-5. Serve this folder over HTTP. For example, run `python -m http.server 8000` from the project directory and open `http://localhost:8000`.
-
-The sheet should remain publicly readable. The browser fetches the CSV URLs directly, so the published endpoint must allow cross-origin requests from the origin serving the game.
-
-When sheet data changes, missing Monster Loot/Material references are ignored and reported in the game status; Loot referring to a removed Skill becomes collectible loot. Saved progress is repaired when it refers to removed or changed monsters, loot, or materials, preserving unrelated progress. Invalid saved loot entries are removed individually and the repaired save is written on startup. If another error prevents startup, use the error screen's **Reset saved game and retry** button to clear the local save and retry with fresh progress.
-
-### Worksheet schemas
-
-Column names are case-sensitive. Every listed column is required, except `Monsters.Type`, `Monsters.Loot Chance`, and `Monsters.Mat Chance`, which may be omitted or left blank.
-
-| Worksheet | Columns | Meaning |
-| --- | --- | --- |
-| `Skills` | `Name` | Each row names a supported effect type: `Attack`, `Magic`, `Defend`, `Heal`, `Revive`, or `Flee`. |
-| `Monsters` | `Name,Type,Level,HP,Damage,Loot,Materials,Mat Count,Loot Chance,Mat Chance` | `HP` sets the monster's health. `Type` may be omitted or blank; set it to `Boss` for Boss enemies. Other type names are regular monsters. `Loot Chance` is the 0–100 percent chance of dropping listed loot; `Mat Chance` independently controls listed Material drops. Either chance may be omitted or blank and defaults to 100. `Mat Count` is the number of each listed Material awarded when materials drop; it defaults to 1 and may be 0. XP is `Level × 10`; `Level` also sets the player level required to unlock the monster. `Damage` is dealt between surviving player attacks. `Loot` and `Materials` are item names from the corresponding tabs. The material-reference column may also be omitted or use the legacy header `Currency`. Separate multiple Materials with commas, semicolons, or `|`; quote comma-separated names as one CSV cell. |
-| `Loot` | `Name,Slot,Value,Skill,Skill Effect,Rarity` | Loot item, equipment slot, numeric damage/value, optional skill name from `Skills`, and skill strength as a number or (for `Defend` and `Heal`) a percentage such as `25%`; leave blank if unused. Rarity must be `Trash`, `Common`, `Uncommon`, `Rare`, `Epic`, `Legendary`, or `Mythic`. Leave `Slot` blank for an instant-use item. Monster defeats put referenced loot in the Bag. One item can occupy each slot in Equipment. |
-| `Materials` | `Name,Value,Uses` | Material item, its numeric value, and its intended uses. Monsters award each referenced Material on every defeat; sell these items in the Shop to add their `Value` to your Souls. |
-Valid `Skills.Name` values are:
-
-- `Attack`: a consumable hits the selected monster for the Loot row's `Skill Effect`; equipped loot increases damage by its `Value`.
-- `Magic`: deals damage like `Attack`; consumables hit the selected monster for the Loot row's `Skill Effect`, and equipped loot increases damage by its `Value`.
-- `Defend`: a numeric `Skill Effect` reduces incoming damage by that amount; a percentage reduces damage by that percent. Equipped loot applies on each hit, while a consumable applies to the next incoming hit.
-- `Heal`: a numeric `Skill Effect` restores that many HP; a percentage restores that percent of the player's current max HP. Healing is capped at max HP.
-- `Revive`: a consumable item with this skill can be used after Game Over to restore full HP and resume the fight; its `Skill Effect` is ignored.
-- `Flee`: using a consumable item with this skill abandons the current monster and pauses on Prepare.
-
-Example rows (use these as a starting point in your own sheet):
-
-```csv
-Skills
-Name
-Attack
-Magic
-Defend
-Heal
-Revive
-Flee
-
-Monsters
-Name,Type,Level,HP,Damage,Loot,Materials,Mat Count,Loot Chance,Mat Chance
-Green,Normal,1,10,4,Feather; Spatula,Bottlecap,1,100,75
-Blue,Normal,2,20,8,Sheet Pan,,1,50,100
-
-Loot
-Name,Slot,Value,Skill,Skill Effect,Rarity
-Feather,Hand,1,Attack,1,Common
-Spatula,Hand,3,Attack,2,Rare
-Sheet Pan,Offhand,5,Defend,2,Uncommon
-Damage Potion,,0,Attack,3,Mythic
-Magic Orb,,0,Magic,3,Epic
-Shield Potion,,0,Defend,50%,Uncommon
-Healing Potion,,0,Heal,25%,Rare
-
-Materials
-Name,Value,Uses
-Bottlecap,1,Shop
-```
-
-Each section above belongs on its own worksheet; do not include the section labels as CSV rows.
+The data behind it lives at: https://docs.google.com/spreadsheets/d/e/2PACX-1vTC0eRjsrgC8EcIsn1_Rt5zwkta1U5gVVAPfv7XJem4UKwmgNcUf8mlz2qjEzDBPmnBYEUECSrle6YU/pub
 
 ## Game behavior
 
@@ -106,11 +39,3 @@ Each section above belongs on its own worksheet; do not include the section labe
 - Returning players receive at most eight hours of offline combat progress.
 - A debug-only Reset button is enabled by default; it clears this game's local save and restarts at level 1.
 - When `DEBUG_ENABLED` is true in [config.js](./config.js), the main menu also shows CHEAT, where selecting any Loot item adds one copy to the Bag for free.
-
-## Development and tests
-
-The app has no third-party dependencies. Run the built-in Node.js test suite with:
-
-```sh
-npm test
-```
