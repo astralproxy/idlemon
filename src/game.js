@@ -636,17 +636,6 @@ export function useLoot(state, content, lootId, random = Math.random) {
   }
   else if (skill.effect === "damage_flat")
   {
-    // OLD WAY DIDN'T CHECK BOSSES
-    // const target = content.monsters.find((monster) => monster.id === state.targetMonsterId);
-    // if (!target || target.unlock_level > state.level) {
-    //   throw new Error("The selected monster is unavailable.");
-    // }
-    // state.monsterHp -= item.effectValue;
-    // if (state.monsterHp <= 0) {
-    //   grantKillRewards(state, content, target, random);
-    //   state.monsterHp = target.health;
-    // }
-
     const target = content.monsters.find((monster) => monster.id === state.targetMonsterId);
     if (!target || target.unlock_level > state.level) {
       throw new Error("The selected monster is unavailable.");
@@ -942,35 +931,6 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
       
       break; // Stop further attacks so the 0 HP state is displayed
     }
-/*    state.monsterHp -= stats.damage;
-    if (state.monsterHp <= 0) {
-      state.monsterHp = 0; // explicitly set to 0 to avoid over-kill
-
-      grantKillRewards(state, content, target, random);
-      
-      if (target.type.toLowerCase() === "boss") {
-        state.shopUnlocked = true;
-        state.shopVisited = false;
-        state.bossShopHintDismissed = false;
-        state.awaitingMonsterSelection = true;
-        state.pendingTargetMonsterId = null;
-        state.prepareViewed = false;
-        state.attackRemainder = 0;
-        break;
-      }
-      else if (state.pendingTargetMonsterId) {
-        target = content.monsters.find((monster) => monster.id === state.pendingTargetMonsterId);
-        state.targetMonsterId = target.id;
-        state.pendingTargetMonsterId = null;
-        //state.monsterHp = target.health; // or keep at 0 to tick before spawning next monster
-      }
-      else {
-        state.monsterHp = target.health;
-      }
-
-      break;
-      //continue;
-    }*/
 
     const incomingDamage = state.godMode
       ? 0
