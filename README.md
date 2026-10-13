@@ -79,7 +79,7 @@ Each section above belongs on its own worksheet; do not include the section labe
 - Player max HP starts at 400 and increases by 15 per level-up, up to a cap of 1,900. Monsters deal their `Damage` value after each player attack that does not defeat them; equipped defense reduces this damage.
 - At zero player health, combat pauses and Game Over shows total monsters defeated. A loot item with skill `Revive` in the Bag can be consumed to restore full HP and resume the fight; if no Revive item is available, use Start Over to clear the run and begin again.
 - Damage starts at 1 and increases by the sum of the `Value`s of equipped loot. Loot picked up from monster defeats goes into the Bag; equipping a Bag item activates its associated skill. Each Equipment slot holds one item, and replacing an item returns it to the Bag.
-- Equipment displays the Hand, Offhand, Head, Chest, Hands, and Leg slots, with each equipped item shown alongside its slot. A Two-Hand item occupies the Hand slot, returns any equipped Offhand item to the Bag, and disables the Offhand slot until it is unequipped.
+- Equipment displays the Hand, Offhand, Head, Chest, Arms, and Leg slots, with each equipped item shown alongside its slot. A Two-Hand item occupies the Hand slot, returns any equipped Offhand item to the Bag, and disables the Offhand slot until it is unequipped.
 - Player Stats, Equipment, and Bag sections can be collapsed independently.
 - The Bag separates loot with a defined `Slot` under Equipment from slotless consumables under Items. Its Materials tab lists collected Materials and quantities; these items cannot be used directly.
 - Newly acquired Bag loot gets a light-yellow border on the Prepare tab until the player returns to Fight.

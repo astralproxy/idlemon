@@ -1034,7 +1034,7 @@ button:focus-visible {
 
 .loot-rarity.rarity-mythic {
   border-radius: 3px;
-  background: #fff;
+  /*background: #fff;*/
   color: #e11d48;
 }
 
@@ -1469,7 +1469,7 @@ footer p {
   }
 
   .gear-item {
-    grid-template-columns: minmax(58px, 0.65fr) minmax(0, 1.35fr) auto;
+    grid-template-columns: minmax(50px, 0.5fr) minmax(0, 1.5fr) auto;
   }
 }
 
