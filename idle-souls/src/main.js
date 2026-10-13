@@ -54,6 +54,13 @@ const elements = {
   game: document.querySelector("#game"),
   fightTab: document.querySelector("#fight-tab"),
   prepareTab: document.querySelector("#prepare-tab"),
+  craftDialog: document.querySelector("#craft-dialog"),
+  craftDialogTitle: document.querySelector("#craft-dialog-title"),
+  craftDialogMessage: document.querySelector("#craft-dialog-message"),
+  craftSourceName: document.querySelector("#craft-source-name"),
+  craftOptionsList: document.querySelector("#craft-options-list"),
+  craftConfirmBtn: document.querySelector("#craft-confirm-btn"),
+
   shopTab: document.querySelector("#shop-tab"),
   shopLockedTooltip: document.querySelector("#shop-locked-tooltip"),
   shopSection: document.querySelector("#shop-section"),
@@ -423,14 +430,37 @@ function render() {
   elements.prepareMonster.hidden = !target || state.activeTab !== "prepare" || state.awaitingMonsterSelection;
   elements.killCount.hidden = !target || state.awaitingMonsterSelection;
   if (target) {
-    const lootRewards = [...target.lootNames];
-    const itemRewards = [
-      ...lootRewards,
-      ...(target.materialNames ?? target.currencyNames ?? []),
-    ];
-    const materialRewards = (target.materialNames ?? target.currencyNames ?? []).map(
-      (name) => `${numberFormat.format(target.materialCount ?? 1)} ${name}`,
-    );
+    const lootRewards = [...target.lootNames];    
+    const rawMaterials = target.materialNames ?? target.currencyNames ?? [];
+    const bossNames = rawMaterials.filter((name) => {
+      const item = content.materials.find((m) => m.name === name);
+      return (item?.notes ?? "").trim().toLowerCase() === "boss";
+    });
+    
+    // Pick which boss item to display: the chosen drop, or the first one as default
+    const activeBossName = state.lastBossDrop && bossNames.includes(state.lastBossDrop)
+      ? state.lastBossDrop
+      : bossNames[0];
+
+    const materialRewards = rawMaterials
+      .filter((name) => name.trim().toLowerCase() !== "soul")
+      .filter((name) => {
+        const item = content.materials.find((m) => m.name === name);
+        const isBoss = (item?.notes ?? "").trim().toLowerCase() === "boss";
+        // Hide non-chosen boss materials when multiple exist
+        return !isBoss || name === activeBossName;
+      })
+      .map((name) => {
+        const item = content.materials.find((m) => m.name === name);
+        if ((item?.notes ?? "").trim().toLowerCase() === "boss") {
+          return `${name}`;
+        } else {
+          return `${numberFormat.format(target.materialCount ?? 1)} ${name}`;
+        }
+      });
+    
+    const itemRewards = [...lootRewards, ...materialRewards];
+
     elements.monsterLevel.textContent = `Level ${target.level}`;
     elements.bossKilledName.textContent = target.name;
     elements.bossKilledReward.replaceChildren(
@@ -595,17 +625,14 @@ function render() {
     
     const slotLabel = item.slot ? item.slot : "Consumable";
     const titleSpan = createTextElement("span", `item-title loot-rarity rarity-${item.rarity.toLowerCase()}`, item.name);
-    const slotSpan = createTextElement("span", "muted", ` (${slotLabel})`);
-    slotSpan.style.fontWeight = "normal";
+    
+    // Combine slot and effect into one descriptive string
+    const detailsText = `(${slotLabel}) - ${lootEffectText(item)}`;
 
     const heading = createTextElement("h3", "", "");
-    heading.append(titleSpan, slotSpan);
+    heading.append(titleSpan, document.createElement("br"), createTextElement("span", "muted item-description", detailsText));
 
-    textContainer.append(
-      heading,
-      createTextElement("p", "muted item-description", lootEffectText(item)),
-      ...(isShop ? [createTextElement("p", "muted item-description", `Value: ${numberFormat.format(item.value)}`)] : []),
-    );
+    textContainer.append(heading);
     
     const button = document.createElement("button");
     button.type = "button";
@@ -684,9 +711,14 @@ function render() {
     // Append to row in exact grid column order: [Text, Badge, Button/Actions]
     if (isShop) {
       const actions = createTextElement("div", "bag-sale-actions", "");
-      actions.append(createTextElement("span", "bag-sale-value", `Value: ${numberFormat.format(item.value)}`));
       
-      actions.append(button);
+      // Create a stacked wrapper for Value + Sell button
+      const stackedContainer = createTextElement("div", "bag-sale-stacked", "");
+      stackedContainer.append(
+        createTextElement("span", "bag-sale-value", `Value: ${numberFormat.format(item.value)}`),
+        button
+      );
+      actions.append(stackedContainer);
 
       row.append(textContainer, badge, actions);
     } else {
@@ -714,13 +746,118 @@ function render() {
     (item) => {
       const row = document.createElement("article");
       row.className = "list-item loot-item";
-      row.append(
-        createTextElement("strong", "item-title", item.name),
-        createTextElement("span", "badge", `×${state.currencyInventory[item.id]}`),
-      );
+      
+      const materialUses = (item.uses ?? item.use ?? "").toLowerCase().split(/[\s,]+/);
+      const isCraftMaterial = materialUses.includes("craft");
+      const isBossMaterial = (item.notes ?? "").trim().toLowerCase() === "boss";
+
+      const textContainer = createTextElement("div", "skill-copy", "");
+
+      // Apply text highlight if notes === "Boss"
+      const titleClasses = `item-title${isBossMaterial ? " boss-material-title" : ""}`;
+      const titleSpan = createTextElement("strong", titleClasses, item.name);
+      textContainer.append(titleSpan);
+      
+      if (isCraftMaterial) {
+        const craftNoteSpan = createTextElement("span", "muted", "(Also used in Crafting)");
+        craftNoteSpan.style.display = "block";
+        craftNoteSpan.style.fontWeight = "normal";
+        textContainer.append(craftNoteSpan);
+      }
+      
+      const badge = createTextElement("span", "badge", `×${state.currencyInventory[item.id]}`);
+      row.append(textContainer, badge);
+
+      const actions = createTextElement("div", "bag-sale-actions", "");
+
+      // Check if this material's use type is Craft AND we're in the Prepare tab
+      if (state.activeTab === "prepare" && isCraftMaterial) {
+        const craftButton = document.createElement("button");
+        craftButton.type = "button";
+        craftButton.className = "button secondary";
+        craftButton.textContent = "Craft";
+        
+        craftButton.addEventListener("click", () => {
+          if (!elements.craftDialog) {
+            console.error("craftDialog element not found in DOM!");
+            return;
+          }
+
+          activeCraftItem = item;
+          selectedCraftLootId = null;
+
+          elements.craftDialogTitle.textContent = "Crafting";
+          elements.craftOptionsList.replaceChildren();
+          elements.craftConfirmBtn.disabled = true;
+
+          const craftedNames = (item.crafted ?? "")
+            .split(/[,;\n]+/)
+            .map((name) => name.trim())
+            .filter(Boolean);
+
+          if (craftedNames.length === 0) {
+            elements.craftOptionsList.append(createTextElement("p", "muted", "No recipes available."));
+          } else {
+            for (const lootName of craftedNames) {
+              const lootItem = content.loot.find((l) => l.name.toLowerCase() === lootName.toLowerCase());
+              const optionCard = document.createElement("button");
+              optionCard.type = "button";
+              optionCard.className = "list-item loot-item crafted-loot-item";
+              
+              if (lootItem) {
+                const slotLabel = lootItem.slot ? lootItem.slot : "Consumable";
+                
+                // Title and slot together on the first line
+                const titleSpan = createTextElement("span", `item-title loot-rarity rarity-${lootItem.rarity.toLowerCase()}`, lootItem.name);
+                
+                const detailsText = `(${slotLabel}) - ${lootEffectText(lootItem)}`;
+                const detailsSpan = createTextElement("span", "muted item-description", detailsText);
+                detailsSpan.style.fontWeight = "normal";
+
+                const heading = createTextElement("strong", "", "");
+                heading.append(titleSpan, document.createElement("br"), detailsSpan);
+
+                const valueLabel = createTextElement("span", "muted", "Value:");
+                const valueNum = createTextElement("span", "muted", numberFormat.format(lootItem.value));
+                valueNum.style.color = "var(--accent)";
+
+                const valueContainer = createTextElement("div", "", "");
+                valueContainer.style.display = "flex";
+                valueContainer.style.flexDirection = "column";
+                valueContainer.style.alignItems = "flex-end";
+                valueContainer.style.textAlign = "right";
+                valueContainer.append(valueLabel, valueNum);
+
+                optionCard.style.display = "grid";
+                optionCard.style.gridTemplateColumns = "1fr 50px";
+                optionCard.style.alignItems = "center";
+                optionCard.style.gap = "12px";
+
+                optionCard.append(heading, valueContainer);
+              } else {
+                optionCard.append(createTextElement("strong", "", lootName));
+              }
+
+              optionCard.addEventListener("click", () => {
+                elements.craftOptionsList.querySelectorAll(".list-item").forEach((el) => el.classList.remove("is-new-loot"));
+                optionCard.classList.add("is-new-loot");
+                selectedCraftLootId = lootItem ? lootItem.id : null;
+                elements.craftConfirmBtn.disabled = !selectedCraftLootId;
+              });
+
+              elements.craftOptionsList.append(optionCard);
+            }
+          }
+
+          elements.craftDialog.showModal();
+        });
+        actions.append(craftButton);
+      }
+
       if (state.activeTab === "shop") {
         const actions = createTextElement("div", "bag-sale-actions", "");
-        actions.append(createTextElement("span", "bag-sale-value", `Value: ${numberFormat.format(item.value)}`));
+        const stackedContainer = createTextElement("div", "bag-sale-stacked", "");
+
         const sellMaterialCount = (count) => {
           try {
             if (!sellMaterial(state, content, item.id, count)) {
@@ -738,6 +875,7 @@ function render() {
             setStatus(`Could not sell ${item.name}: ${error.message}`);
           }
         };
+
         const button = document.createElement("button");
         button.type = "button";
         button.className = "button";
@@ -753,19 +891,19 @@ function render() {
             sellMaterialCount(1);
           }
         });
-        actions.append(button);
-        /* Sell All button (old)
-        if (count > 5) {
-          const sellAllButton = document.createElement("button");
-          sellAllButton.type = "button";
-          sellAllButton.className = "button secondary";
-          sellAllButton.textContent = "Sell All";
-          sellAllButton.addEventListener("click", () => sellMaterialCount(count));
-          actions.append(sellAllButton);
-        }*/
 
+        stackedContainer.append(
+          createTextElement("span", "bag-sale-value", `Value: ${numberFormat.format(item.value)}`),
+          button
+        );
+        actions.append(stackedContainer);
         row.append(actions);
       }
+
+      if (actions.children.length > 0) {
+        row.append(actions);
+      }
+
       return row;
     },
   );
@@ -811,6 +949,34 @@ function renderShop() {
     elements.shopList.append(card);
   });
 }
+
+let activeCraftItem = null;
+let selectedCraftLootId = null;
+
+elements.craftDialog.addEventListener("close", () => {
+  if (elements.craftDialog.returnValue === "craft" && selectedCraftLootId && activeCraftItem) {
+    try {
+      if ((state.currencyInventory[activeCraftItem.id] ?? 0) < 1) {
+        setStatus(`You no longer have ${activeCraftItem.name}.`);
+        return;
+      }
+      state.currencyInventory[activeCraftItem.id] -= 1;
+      if (state.currencyInventory[activeCraftItem.id] === 0) {
+        delete state.currencyInventory[activeCraftItem.id];
+      }
+
+      addLootToBag(state, content, selectedCraftLootId);
+      const craftedItem = content.loot.find((l) => l.id === selectedCraftLootId);
+      setStatus(`Successfully crafted ${craftedItem ? craftedItem.name : "item"}!`);
+      render();
+      saveState();
+    } catch (error) {
+      setStatus(`Could not craft item: ${error.message}`);
+    }
+  }
+  activeCraftItem = null;
+  selectedCraftLootId = null;
+});
 
 elements.refreshShop.addEventListener("click", () => {
   try {

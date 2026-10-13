@@ -79,7 +79,7 @@
             </div>
             <div id="boss-killed-card" class="boss-killed-card" hidden>
               <div class="boss-killed-heading">
-                <h3>BOSS KILLED!</h3>
+                <h3>VICTORY ACHIEVED</h3>
               </div>
               <p id="boss-killed-name" class="boss-killed-name"></p>
               <p id="boss-killed-reward" class="muted"></p>
@@ -107,7 +107,7 @@
           </div>
           <div id="player-stats-compact" class="player-stats-compact" aria-label="Player stats summary" hidden>
             <span>Level: <strong id="compact-player-level">1</strong></span>
-            <span>HP: <strong id="compact-player-hp">400</strong> / <strong id="compact-player-max-hp">400</strong><br>[D: <strong id="compact-player-armor">0</strong>]</span>
+            <span>HP: <strong id="compact-player-hp">400</strong> / <strong id="compact-player-max-hp">400</strong><br>[DEF: <strong id="compact-player-armor">0</strong>]</span>
             <span>DPS: <strong id="compact-player-damage">1</strong></span>
           </div>
           <div id="player-stats-details">
@@ -278,6 +278,16 @@
         <p class="muted">Select any item to add one copy to your Bag for free.</p>
         <div id="cheat-loot-list" class="item-list cheat-loot-list"></div>
       </section>
+
+      <dialog id="craft-dialog" class="sell-confirm-dialog" aria-labelledby="craft-dialog-title">
+        <h2 id="craft-dialog-title">Crafting</h2>
+        <p id="craft-dialog-message">Select an item to craft:</p>
+        <div id="craft-options-list" class="item-list" style="margin: 12px 0; max-height: 200px; overflow-y: auto;"></div>
+        <form class="sell-confirm-actions horizontal-actions" method="dialog">
+          <button id="craft-confirm-btn" class="button" type="submit" value="craft" disabled>OK</button>
+          <button class="button secondary" type="submit" value="cancel">Cancel</button>
+        </form>
+      </dialog>
 
       <dialog id="sell-confirm-dialog" class="sell-confirm-dialog" aria-labelledby="sell-confirm-title">
         <h2 id="sell-confirm-title">Confirm sale</h2>
