@@ -45,6 +45,15 @@
         <button id="reset-error-game" class="button reset-button" type="button">Reset saved game and retry</button>
       </section>
 
+      <dialog id="confirm-dialog" class="sell-confirm-dialog" aria-labelledby="confirm-dialog-title">
+        <h2 id="confirm-dialog-title">Confirm</h2>
+        <p id="confirm-dialog-message">Are you sure?</p>
+        <form id="confirm-dialog-form" class="sell-confirm-actions horizontal-actions" method="dialog">
+          <button id="confirm-dialog-yes" class="button" type="submit" value="confirm">Yes</button>
+          <button id="confirm-dialog-no" class="button secondary" type="submit" value="cancel">Cancel</button>
+        </form>
+      </dialog>
+
       <div id="game" hidden>
         <div class="combat-tabs" role="tablist" aria-label="Game mode">
           <button id="fight-tab" class="combat-tab" type="button" role="tab" aria-selected="true" aria-controls="monster-section" tabindex="0">Fight</button>
@@ -120,7 +129,7 @@
           </div>
           <div id="player-stats-compact" class="player-stats-compact" aria-label="Player stats summary" hidden>
             <span>Level: <strong id="compact-player-level">1</strong></span>
-            <span>HP: <strong id="compact-player-hp">400</strong> / <strong id="compact-player-max-hp">400</strong><br>[DEF: <strong id="compact-player-armor">0</strong>]</span>
+            <span>HP: <strong id="compact-player-hp">400</strong> / <strong id="compact-player-max-hp">400</strong><br><small>[DEF: <strong id="compact-player-armor">0</strong>]</small></span>
             <span>DPS: <strong id="compact-player-damage">1</strong></span>
           </div>
           <div id="player-stats-details">
@@ -234,6 +243,13 @@
         <br><hr><br>
         <p>DANGER ZONE: Push this button to completely reset your game.</p>
         <button id="reset-game" class="button reset-button" type="button" hidden>Reset</button>
+        <br><br><hr>
+        <details class="status-log-section" style="margin-top: 16px;">
+          <summary style="cursor: pointer; font-weight: bold; color: var(--accent);">Status Log History</summary>
+          <div class="status-log-container" style="margin-top: 8px; max-height: 200px; overflow-y: auto;">
+            <div id="status-log-list" class="item-list"></div>
+          </div>
+        </details>
       </section>
 
       <section id="help-page" class="panel content-page" aria-labelledby="help-title" hidden>
@@ -266,7 +282,7 @@
           <button class="button secondary return-to-game" type="button">Back to game</button>
         </div>
         <label class="setting-option" for="swap-inventory-order">
-          <input id="swap-inventory-order" type="checkbox">
+          <input id="swap-inventory-order" type="checkbox" checked>
           <span>Swap Equipment and Bag</span>
         </label>
         <label class="setting-option" for="hide-status-text">

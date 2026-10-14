@@ -12,6 +12,7 @@
   --accent: #f0f0f0;
   --accent-dark: #555555;
   --warning: #c80808;
+  --new-loot: #fff176;
 }
 
 * {
@@ -290,6 +291,10 @@ h3 {
 .player-stats-compact span {
   min-width: 0;
   text-align: center;
+}
+
+#compact-player-hp.is-low-hp {
+  color: #ff8080;
 }
 
 .panel.monster-panel,
@@ -631,7 +636,7 @@ h3 {
 }
 
 .boss-material-title {
-  color: #fff176; /* Light yellow accent */
+  color: rgb(255, 250, 200); /* Light yellow accent */
 }
 
 .boss-shop-hint {
@@ -919,6 +924,7 @@ button:focus-visible {
 }
 
 .bag-tab {
+  position: relative;
   flex: 1 1 0; /* Makes each tab take equal 25% width */
   min-height: 38px;
   padding: 7px 4px;
@@ -934,6 +940,16 @@ button:focus-visible {
 .bag-tab[aria-selected="true"] {
   background: var(--surface-raised);
   color: var(--accent);
+}
+
+.tab-indicator {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  color: var(--new-loot);
+  font-size: 0.9rem;
+  font-weight: bold;
+  line-height: 1;
 }
 
 .combat-tabs {
@@ -1096,8 +1112,8 @@ button:focus-visible {
 }
 
 .loot-item.is-new-loot {
-  border-color: #fff176;
-  box-shadow: 0 0 0 1px #fff176;
+  border-color: var(--new-loot);
+  box-shadow: 0 0 0 1px var(--new-loot);
 }
 
 .bag-sale-value {
@@ -1156,25 +1172,25 @@ button:focus-visible {
 }
 
 .loot-rarity.rarity-uncommon {
-  color: #35c759;
+  color: rgb(60, 210, 97);
 }
 
 .loot-rarity.rarity-rare {
-  color: #3b82f6;
+  color: rgb(69, 140, 255);
 }
 
 .loot-rarity.rarity-epic {
-  color: #a855f7;
+  color: rgb(176, 91, 255);
 }
 
 .loot-rarity.rarity-legendary {
-  color: #f97316;
+  color: rgb(255, 140, 58);
 }
 
 .loot-rarity.rarity-mythic {
   border-radius: 3px;
   /*background: #fff;*/
-  color: #e11d48;
+  color: rgb(239, 37, 81);
 }
 
 .sell-confirm-dialog {

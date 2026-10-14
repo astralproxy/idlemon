@@ -9,7 +9,7 @@ const SKILL_ABILITIES = new Map([
   ["flee", "flee"],
 ]);
 
-const LOOT_RARITIES = new Map([
+export const LOOT_RARITIES = new Map([
   ["trash", "Trash"],
   ["common", "Common"],
   ["uncommon", "Uncommon"],
@@ -18,6 +18,9 @@ const LOOT_RARITIES = new Map([
   ["legendary", "Legendary"],
   ["mythic", "Mythic"],
 ]);
+
+// Exported array matching the exact map order (low to high)
+export const RARITY_ORDER = [...LOOT_RARITIES.keys()];
 
 function slug(value) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -58,6 +61,7 @@ const SCHEMAS = {
         value: number(row.Value, "Value", 0),
         ...parseSkillEffect(row["Skill Effect"], skill),
         rarity,
+        notes: row.Notes?.trim() ?? "",
       };
     },
   },
@@ -111,6 +115,21 @@ function parseSkill(row) {
 function parseMonster(row) {
   const name = requiredText(row.Name, "Name");
   const level = integer(row.Level, "Level", 1);
+  const lootNames = references(row.Loot);
+
+  let lootChances = [];
+  const lootChanceRaw = row["Loot Chance"]?.trim();
+  if (lootChanceRaw) {
+    const parts = lootChanceRaw.replace(/^["']|["']$/g, "").split(/,\s*/).filter(Boolean);
+    lootChances = parts.map((part) => percentage(part, "Loot Chance"));
+  } else {
+    lootChances = Array(lootNames.length).fill(100);
+  }
+
+  if (lootChances.length === 1 && lootNames.length > 1) {
+    lootChances = Array(lootNames.length).fill(lootChances[0]);
+  }
+
   return {
     id: slug(name),
     name,
@@ -121,10 +140,11 @@ function parseMonster(row) {
     xp: level * 10,
     unlock_level: level,
     location: row.Location?.trim() ?? "",
-    lootChance: row["Loot Chance"]?.trim() ? percentage(row["Loot Chance"], "Loot Chance") : 100,
+    lootChance: lootChances[0],
+    lootChances,
     materialCount: row["Mat Count"]?.trim() ? integer(row["Mat Count"], "Mat Count", 0) : 1,
     materialChance: row["Mat Chance"]?.trim() ? percentage(row["Mat Chance"], "Mat Chance") : 100,
-    lootNames: references(row.Loot),
+    lootNames,
     materialNames: references(row.Materials ?? row.Currency ?? "", /[;,|]/),
   };
 }
