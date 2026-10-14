@@ -946,6 +946,7 @@ function grantKillRewards(state, content, monster, random = Math.random) {
       const notes = (item.notes ?? item.Notes ?? "").trim().toLowerCase();
       const isBoss = notes === "boss";
       const isUnique = notes.includes("unique");
+      const isUpgrade = notes.includes("upgrade");
 
       if (isBoss) {
         bossMaterials.push(item);
@@ -956,7 +957,10 @@ function grantKillRewards(state, content, monster, random = Math.random) {
           state.currencyBalance = (state.currencyBalance ?? 0) + (materialCount * soulValue);
         } else {
           const currentCount = state.currencyInventory[item.id] ?? 0;
-          const countToAdd = isUnique ? Math.min(1, Math.max(0, 1 - currentCount)) : materialCount;
+          // If it's an upgrade item, limit the drop amount to 1 max per drop event
+          const effectiveCount = isUpgrade ? 1 : materialCount;
+          const countToAdd = isUnique ? Math.min(1, Math.max(0, 1 - currentCount)) : effectiveCount;
+          
           if (countToAdd > 0) {
             state.currencyInventory[item.id] = currentCount + countToAdd;
           }
