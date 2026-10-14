@@ -9,9 +9,9 @@
   --surface-raised: #363636;
   --border: #505050;
   --muted: #b8b8b8;
-  --accent: #d0d0d0;
+  --accent: #f0f0f0;
   --accent-dark: #555555;
-  --warning: #c8c8c8;
+  --warning: #c80808;
 }
 
 * {
@@ -28,7 +28,7 @@ body {
   min-height: 100vh;
   background:
     linear-gradient(rgb(18 18 18 / 76%), rgb(18 18 18 / 82%)),
-    url("./art/background.jpg") center / cover fixed,
+    var(--bg-image, url("./art/background.webp")) center / cover fixed,
     #202020;
 }
 
@@ -56,7 +56,7 @@ body {
   text-align: center;
   opacity: 1;
   transition: opacity 0.5s ease-out, filter 0.5s ease-out;
-  animation: splashBlurFadeIn 2s ease-out forwards;
+  animation: splashBlurFadeIn 1.3s ease-out forwards;
 }
 
 .splash-screen.fade-out {
@@ -236,7 +236,7 @@ h3 {
 .panel.player-stats-panel {
   margin-bottom: 12px;
   padding: 8px;
-  background: #000;
+  background: #050505;
 }
 
 .player-stats-heading {
@@ -296,7 +296,7 @@ h3 {
 .panel.gear-panel,
 .panel.bag-panel {
   padding: 8px;
-  background: #000;
+  background: #050505;
 }
 
 .panel.prepare-monster {
@@ -320,7 +320,7 @@ h3 {
 .panel.shop-panel {
   margin-bottom: 12px;
   padding: 8px;
-  background: #000;
+  background: #050505;
 }
 
 .shop-header-actions {
@@ -378,7 +378,7 @@ h3 {
   justify-items: end;
   gap: 8px;
 }
-
+.panel.player-stats-pan
 .shop-price {
   color: var(--accent);
   font-size: 0.82rem;
@@ -390,6 +390,20 @@ h3 {
   border-radius: 12px;
   background: rgb(41 41 41 / 95%);
   box-shadow: 0 18px 45px rgb(0 0 0 / 34%);
+}
+
+.panel.player-stats-panel,
+.panel.monster-panel,
+.panel.gear-panel,
+.panel.bag-panel,
+.panel.prepare-monster,
+.panel.shop-panel {
+  border: 1px solid #5e4a2b;
+  outline: 1px solid #5e4a2b;
+  outline-offset: -3px;
+  border-radius: 12px;
+  background: #0d0c0a;
+  box-shadow: 0 4px 20px rgb(0 0 0 / 25%);
 }
 
 .summary-card {
@@ -904,6 +918,24 @@ button:focus-visible {
   border-bottom: 1px solid var(--border);
 }
 
+.bag-tab {
+  flex: 1 1 0; /* Makes each tab take equal 25% width */
+  min-height: 38px;
+  padding: 7px 4px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: #101010; /* Near-black background for unselected state */
+  color: var(--muted);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.bag-tab[aria-selected="true"] {
+  background: var(--surface-raised);
+  color: var(--accent);
+}
+
 .combat-tabs {
   gap: 0;
   margin: 0 0 12px;
@@ -912,7 +944,6 @@ button:focus-visible {
   overflow: hidden;
 }
 
-.bag-tab,
 .combat-tab {
   min-height: 38px;
   padding: 7px 12px;

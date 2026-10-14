@@ -143,17 +143,20 @@ const elements = {
   defeatedCount: document.querySelector("#defeated-count"),
   unlockedCount: document.querySelector("#unlocked-count"),
   gearList: document.querySelector("#gear-list"),
-  bagArmorTab: document.querySelector("#bag-armor-tab"),
   bagToggle: document.querySelector("#bag-toggle"),
   bagContent: document.querySelector("#bag-content"),
   bagShopNote: document.querySelector("#bag-shop-note"),
   bagItemsTab: document.querySelector("#bag-items-tab"),
-  bagMaterialsTab: document.querySelector("#bag-materials-tab"),
   bagItemsPanel: document.querySelector("#bag-items-panel"),
-  bagArmorPanel: document.querySelector("#bag-armor-panel"),
-  bagMaterialsPanel: document.querySelector("#bag-materials-panel"),
   bagItemsList: document.querySelector("#bag-items-list"),
+  bagWeaponsTab: document.querySelector("#bag-weapons-tab"),
+  bagWeaponsPanel: document.querySelector("#bag-weapons-panel"),
+  bagWeaponsList: document.querySelector("#bag-weapons-list"),
+  bagArmorTab: document.querySelector("#bag-armor-tab"),
+  bagArmorPanel: document.querySelector("#bag-armor-panel"),
   bagArmorList: document.querySelector("#bag-armor-list"),
+  bagMaterialsTab: document.querySelector("#bag-materials-tab"),
+  bagMaterialsPanel: document.querySelector("#bag-materials-panel"),
   bagMaterialsList: document.querySelector("#bag-materials-list"),
   gearToggle: document.querySelector("#gear-toggle"),
   gearContent: document.querySelector("#gear-content"),
@@ -181,6 +184,7 @@ let saveErrorShown = false;
 let resetting = false;
 let shopTooltipTimeout;
 let isMonsterSelectOpen = false;
+let lastKnownActiveMonsterId = null;
 
 function showError(message) {
   elements.game.hidden = true;
@@ -235,6 +239,30 @@ function renderList(container, rows, emptyText, renderRow) {
   }
   for (const row of rows) {
     container.append(renderRow(row));
+  }
+}
+
+function updateBackground(monster) {
+  if (!monster) return;
+  const loc = monster.location || monster.Location;
+  if (!loc) return;
+
+  const filename = loc
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "") + ".webp";
+
+  document.body.style.setProperty("--bg-image", `url("./art/${filename}")`);
+}
+
+function checkAndUpdateBackground() {
+  if (!state || !content) return;
+  if (state.targetMonsterId !== lastKnownActiveMonsterId) {
+    lastKnownActiveMonsterId = state.targetMonsterId;
+    const target = content.monsters.find((m) => m.id === state.targetMonsterId);
+    if (target) {
+      updateBackground(target);
+    }
   }
 }
 
@@ -389,7 +417,8 @@ function render() {
   elements.compactPlayerLevel.textContent = numberFormat.format(state.level);
   elements.compactPlayerHp.textContent = numberFormat.format(state.hp);
   elements.compactPlayerHpMax.textContent = numberFormat.format(getPlayerMaxHp(state.level));
-  elements.compactPlayerArmor.textContent = numberFormat.format(stats.defense);
+  //elements.compactPlayerArmor.textContent = numberFormat.format(stats.defense);
+  elements.compactPlayerArmor.textContent = `${numberFormat.format(stats.defense)} + ${stats.defensePercent}%`;
   elements.compactPlayerDamage.textContent = numberFormat.format(stats.damage);
   elements.playerStatsDetails.hidden = playerStatsCollapsed;
   elements.playerStatsCompact.hidden = !playerStatsCollapsed;
@@ -434,7 +463,11 @@ function render() {
   elements.prepareMonster.hidden = !target || state.activeTab !== "prepare" || state.awaitingMonsterSelection;
   elements.killCount.hidden = !target || state.awaitingMonsterSelection;
   if (target) {
-    const lootRewards = state.lastDroppedLootNames ?? [];
+    const lootChance = target.lootChance ?? 100;
+    const lootRewards = (target.lootNames ?? []).map((name) => 
+      lootChance < 100 ? `${name} (${lootChance}%)` : name
+    );
+    //const lastDroppedRewards = state.lastDroppedLootNames ?? [];
     const rawMaterials = target.materialNames ?? target.currencyNames ?? [];
     const bossNames = rawMaterials.filter((name) => {
       const item = content.materials.find((m) => m.name === name);
@@ -735,22 +768,30 @@ function render() {
 
     return row;
   };
+
+  const weaponSlots = new Set(["hand", "two-hand", "offhand"]);
   renderList(
     elements.bagItemsList,
     bagLoot.filter((item) => item.slot === ""),
-    "No items in your bag.",
+    "No consumable items in your bag.",
+    renderBagItem,
+  );
+  renderList(
+    elements.bagWeaponsList,
+    bagLoot.filter((item) => weaponSlots.has(item.slot.toLowerCase())),
+    "No weapons in your bag.",
     renderBagItem,
   );
   renderList(
     elements.bagArmorList,
-    bagLoot.filter((item) => item.slot !== ""),
+    bagLoot.filter((item) => item.slot !== "" && !weaponSlots.has(item.slot.toLowerCase())),
     "No armor in your bag.",
     renderBagItem,
   );
   renderList(
     elements.bagMaterialsList,
     content.materials.filter((item) => (state.currencyInventory[item.id] ?? 0) > 0),
-    "No Materials in your bag.",
+    "No materials in your bag.",
     (item) => {
       const row = document.createElement("article");
       row.className = "list-item loot-item";
@@ -1074,6 +1115,7 @@ function closeMenu() {
 function selectBagTab(tab) {
   const tabs = [
     ["items", elements.bagItemsTab, elements.bagItemsPanel],
+    ["weapons", elements.bagWeaponsTab, elements.bagWeaponsPanel],
     ["armor", elements.bagArmorTab, elements.bagArmorPanel],
     ["materials", elements.bagMaterialsTab, elements.bagMaterialsPanel],
   ];
@@ -1224,31 +1266,15 @@ for (const [tab, tabName] of combatTabs) {
 
 
 elements.bagItemsTab.addEventListener("click", () => selectBagTab("items"));
+elements.bagWeaponsTab.addEventListener("click", () => selectBagTab("weapons"));
 elements.bagArmorTab.addEventListener("click", () => selectBagTab("armor"));
 elements.bagMaterialsTab.addEventListener("click", () => selectBagTab("materials"));
 const bagTabs = [
-  [elements.bagItemsTab, "items"],
+  [elements.bagItemsTab, "items"],  
+  [elements.bagWeaponsTab, "weapons"],
   [elements.bagArmorTab, "armor"],
   [elements.bagMaterialsTab, "materials"],
 ];
-/* Key events for bag navigation */
-// for (const [tab] of bagTabs) {
-//   tab.addEventListener("keydown", (event) => {
-//     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-//       event.preventDefault();
-//       const index = bagTabs.findIndex(([candidate]) => candidate === tab);
-//       const direction = event.key === "ArrowRight" ? 1 : -1;
-//       const next = bagTabs[(index + direction + bagTabs.length) % bagTabs.length];
-//       selectBagTab(next[1]);
-//       next[0].focus();
-//     } else if (event.key === "Home" || event.key === "End") {
-//       event.preventDefault();
-//       const targetTab = event.key === "Home" ? bagTabs[0] : bagTabs[bagTabs.length - 1];
-//       selectBagTab(targetTab[1]);
-//       targetTab[0].focus();
-//     }
-//   });
-// }
 
 function tick() {
   const now = Date.now();
@@ -1260,6 +1286,9 @@ function tick() {
   const gameIsActive = currentPage === "game" && elements.siteMenu.hidden;
   if (gameIsActive) {
     advanceGame(state, content, elapsed * gameSpeed);
+
+    // if new monster activated, we will update the bg image
+    checkAndUpdateBackground();
   }
 
   // Triggered when a Boss is defeated (entering awaiting selection state)
@@ -1286,6 +1315,7 @@ function tick() {
     setStatus(`${monsterDisplayName(defeatedMonster)} defeated.`);
     populateMonsterSelect();
   }
+
   render();
   if (now - state.updatedAt >= 15_000) {
     saveState();
@@ -1486,12 +1516,10 @@ async function startGame() {
       elements.hideStatusText.checked = savedHideStatusText === null || savedHideStatusText === "true";
       
       elements.settingsAutoHealEnabled.checked = localStorage.getItem("idlemon-auto-heal-enabled") === "true";
-      state.autoHealEnabled = elements.settingsAutoHealEnabled.checked;
       const savedThreshold = localStorage.getItem("idlemon-auto-heal-threshold");
       if (savedThreshold !== null) {
         const parsed = parseInt(savedThreshold, 10);
         if (!Number.isNaN(parsed) && parsed > 0) {
-          state.autoHealThreshold = parsed;
           elements.settingsAutoHealThreshold.value = parsed;
         }
       }
@@ -1513,10 +1541,15 @@ async function startGame() {
         : parseSavedState(serialized, content);
     }
 
-    // Apply the settings
+    // Apply standalone settings directly to state AFTER it is initialized
     elements.inventoryGrid.classList.toggle("is-swapped", elements.swapInventoryOrder.checked);
     elements.statusPanel.hidden = elements.hideStatusText.checked;
-
+    
+    state.autoHealEnabled = elements.settingsAutoHealEnabled.checked;
+    const thresholdVal = parseInt(elements.settingsAutoHealThreshold.value, 10);
+    if (!Number.isNaN(thresholdVal) && thresholdVal > 0) {
+      state.autoHealThreshold = thresholdVal;
+    }
     elements.settingsAutoHealEnabled.checked = Boolean(state.autoHealEnabled);
     elements.settingsAutoHealThreshold.value = state.autoHealThreshold ?? 100;
 
@@ -1558,6 +1591,7 @@ async function startGame() {
         }
 
         populateMonsterSelect();
+        checkAndUpdateBackground();
 
         state.updatedAt = now;
         lastTickAt = now;
@@ -1588,7 +1622,7 @@ async function startGame() {
           elements.splashStartBtn.disabled = true;
           dismissSplash();
         };
-      }, splashWaitTime+3000);
+      }, splashWaitTime+2000);
     }
   } catch (error) {
     if (elements.splashScreen) elements.splashScreen.hidden = true;
