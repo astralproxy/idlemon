@@ -1,5 +1,6 @@
 import { DEBUG_ENABLED, SHEET_CSV_URLS } from "../config.js";
-import { loadGameContent } from "./content.js";
+import { loadGameContent, RARITY_ORDER } from "./content.js";
+
 import {
   advanceGame,
   addLootToBag,
@@ -33,6 +34,14 @@ const elements = {
   //splashProgressFill: document.querySelector("#splash-progress-fill"),
   splashStartBtn: document.querySelector("#splash-start-btn"),
   game: document.querySelector("#game"),
+  
+  // Generic confirmation popup
+  confirmDialog: document.querySelector("#confirm-dialog"),
+  confirmDialogTitle: document.querySelector("#confirm-dialog-title"),
+  confirmDialogMessage: document.querySelector("#confirm-dialog-message"),
+  confirmDialogYes: document.querySelector("#confirm-dialog-yes"),
+  confirmDialogNo: document.querySelector("#confirm-dialog-no"),
+
   status: document.querySelector("#game-status"),
   resetGame: document.querySelector("#reset-game"),
   menuToggle: document.querySelector("#menu-toggle"),
@@ -44,22 +53,30 @@ const elements = {
   settingsAutoHealEnabled: document.querySelector("#settings-auto-heal-enabled"),
   settingsAutoHealThreshold: document.querySelector("#settings-auto-heal-threshold"),
   swapInventoryOrder: document.querySelector("#swap-inventory-order"),
+
   hideStatusText: document.querySelector("#hide-status-text"),
   statusPanel: document.querySelector(".status-panel"),
+  statusLogList: document.querySelector("#status-log-list"),
+
   gameSpeed: document.querySelector("#game-speed"),
   gameSpeedValue: document.querySelector("#game-speed-value"),
+  
   inventoryGrid: document.querySelector(".inventory-grid"),
+  
   cheatPage: document.querySelector("#cheat-page"),
   cheatLootList: document.querySelector("#cheat-loot-list"),
   cheatOptionsList: document.querySelector("#cheat-options-list"), // Add this line
+  
   restoreKey: document.querySelector("#restore-key"),
   copyRestoreKey: document.querySelector("#copy-restore-key"),
   copyStatus: document.querySelector("#copy-status"),
   errorPanel: document.querySelector("#error-panel"),
   errorMessage: document.querySelector("#error-message"),
   resetErrorGame: document.querySelector("#reset-error-game"),
+  
   fightTab: document.querySelector("#fight-tab"),
   prepareTab: document.querySelector("#prepare-tab"),
+  
   craftDialog: document.querySelector("#craft-dialog"),
   craftDialogTitle: document.querySelector("#craft-dialog-title"),
   craftDialogMessage: document.querySelector("#craft-dialog-message"),
@@ -193,11 +210,59 @@ function showError(message) {
   elements.status.textContent = "Game unavailable.";
 }
 
+// Generic confirmation popup dialog
+function showConfirmDialog(title, message, yesText = "Yes", noText = "Cancel", isDangerous = false) {
+  if (!elements.confirmDialog) {
+    return Promise.resolve(window.confirm(message));
+  }
+
+  elements.confirmDialogTitle.textContent = title;
+  elements.confirmDialogMessage.textContent = message;
+  elements.confirmDialogYes.textContent = yesText;
+  elements.confirmDialogNo.textContent = noText;
+
+  if (isDangerous) {
+    elements.confirmDialogYes.className = "button reset-button";
+  } else {
+    elements.confirmDialogYes.className = "button";
+  }
+
+  elements.confirmDialog.showModal();
+
+  return new Promise((resolve) => {
+    elements.confirmDialog.addEventListener(
+      "close",
+      () => {
+        resolve(elements.confirmDialog.returnValue === "confirm");
+      },
+      { once: true }
+    );
+  });
+}
+
+// Log status to the main page as well as the Profile history
 function setStatus(message) {
   window.clearTimeout(statusTimeout);
   const version = ++statusVersion;
   statusMessage = message;
   elements.status.textContent = message;
+  
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const dd = pad(now.getDate());
+  const mm = pad(now.getMonth() + 1);
+  const yy = String(now.getFullYear()).slice(-2);
+  const hh = pad(now.getHours());
+  const min = pad(now.getMinutes());
+  const ss = pad(now.getSeconds());
+
+  const timestamp = `$${mm}/{dd}/${yy} ${hh}:${min}:${ss}`;
+
+  state.statusLog.unshift({ text: message, time: timestamp });
+  if (state.statusLog.length > 100) {
+    state.statusLog.pop();
+  }
+
   statusTimeout = window.setTimeout(() => {
     if (version !== statusVersion) {
       return;
@@ -389,17 +454,52 @@ function populateMonsterSelect() {
   elements.monsterSelectedLabel.textContent = currentSelectedText;
 }
 
+function renderStatusLog() {
+  if (!elements.statusLogList || !state) return;
+  renderList(
+    elements.statusLogList,
+    state.statusLog ?? [],
+    "No status history yet.",
+    (entry) => {
+      const item = document.createElement("div");
+      item.className = "list-item";
+      item.style.display = "flex";
+      item.style.justifyContent = "flex-start";
+      item.style.alignItems = "flex-start";
+      item.style.gap = "10px";
+      item.style.fontSize = "0.82rem";
+      item.style.textAlign = "left";
+      
+      const timeSpan = document.createElement("span");
+      timeSpan.style.color = "var(--muted)";
+      timeSpan.style.whiteSpace = "nowrap";
+      timeSpan.textContent = `[${entry.time}]`;
+
+      const textSpan = document.createElement("span");
+      textSpan.style.textAlign = "left";
+      textSpan.textContent = entry.text;
+
+      item.appendChild(timeSpan);
+      item.appendChild(textSpan);
+      return item;
+    }
+  );
+}
+
 function render() {
   const stats = getPlayerStats(state, content);
   const xpNeeded = experienceForNextLevel(state.level);
   renderCombatTab();
+
   elements.game.hidden = currentPage !== "game" || state.gameOver;
   elements.gameOver.hidden = currentPage !== "game" || !state.gameOver;
   elements.profilePage.hidden = currentPage !== "profile";
   elements.helpPage.hidden = currentPage !== "help";
   elements.settingsPage.hidden = currentPage !== "settings";
   elements.settingsAutoHealEnabled.checked = Boolean(state.autoHealEnabled);
-  elements.settingsAutoHealThreshold.value = state.autoHealThreshold ?? 100;
+  if (document.activeElement !== elements.settingsAutoHealThreshold) {
+    elements.settingsAutoHealThreshold.value = state.autoHealThreshold ?? 100;
+  }
   elements.cheatPage.hidden = !DEBUG_ENABLED || currentPage !== "cheat";
   elements.inventoryGrid.classList.toggle("is-shop", state.activeTab === "shop");
   elements.playerStatsPanel.hidden = state.activeTab === "shop";
@@ -410,13 +510,17 @@ function render() {
   elements.xpMeter.parentElement.setAttribute("aria-valuenow", String(Math.floor(state.xp)));
   elements.currencyCount.textContent = numberFormat.format(state.currencyBalance);
   elements.shopCurrencyCount.textContent = numberFormat.format(state.currencyBalance);
-  elements.hp.textContent = numberFormat.format(state.hp);
-  elements.hpMax.textContent = numberFormat.format(getPlayerMaxHp(state.level));
+  const playerHp = Math.floor(state.hp);
+  const playerHpMax = getPlayerMaxHp(state.level);
+  elements.hp.textContent = numberFormat.format(playerHp);
+  elements.hpMax.textContent = numberFormat.format(playerHpMax);
   elements.armor.textContent = numberFormat.format(stats.defense);
   elements.damage.textContent = numberFormat.format(stats.damage);
   elements.compactPlayerLevel.textContent = numberFormat.format(state.level);
-  elements.compactPlayerHp.textContent = numberFormat.format(state.hp);
-  elements.compactPlayerHpMax.textContent = numberFormat.format(getPlayerMaxHp(state.level));
+  elements.compactPlayerHp.textContent = numberFormat.format(playerHp);
+  elements.compactPlayerHpMax.textContent = numberFormat.format(playerHpMax);
+  const hpPercent = (playerHp / playerHpMax) * 100;
+  elements.compactPlayerHp.classList.toggle("is-low-hp", hpPercent < 20);
   //elements.compactPlayerArmor.textContent = numberFormat.format(stats.defense);
   elements.compactPlayerArmor.textContent = `${numberFormat.format(stats.defense)} + ${stats.defensePercent}%`;
   elements.compactPlayerDamage.textContent = numberFormat.format(stats.damage);
@@ -435,8 +539,12 @@ function render() {
   elements.bagToggle.textContent = bagCollapsed ? "+" : "−";
   elements.bagToggle.setAttribute("aria-label", `${bagCollapsed ? "Expand" : "Collapse"} Bag`);
   elements.status.textContent = statusMessage;
-  if (!elements.profilePage.hidden && document.activeElement !== elements.restoreKey) {
-    elements.restoreKey.value = createRestoreKey(state);
+
+  if (!elements.profilePage.hidden) {
+    renderStatusLog();
+    if (document.activeElement !== elements.restoreKey) {
+      elements.restoreKey.value = createRestoreKey(state);
+    }
   }
 
   // Update the selected label text based on current state target
@@ -463,11 +571,16 @@ function render() {
   elements.prepareMonster.hidden = !target || state.activeTab !== "prepare" || state.awaitingMonsterSelection;
   elements.killCount.hidden = !target || state.awaitingMonsterSelection;
   if (target) {
+    // Normal enemies show all loot as rewards because we don't take time to see what actually dropped
+    // Boss kills pause the game, so we only want to see what actually dropped
+    const isBoss = target.type.toLowerCase() === "boss";
     const lootChance = target.lootChance ?? 100;
-    const lootRewards = (target.lootNames ?? []).map((name) => 
-      lootChance < 100 ? `${name} (${lootChance}%)` : name
-    );
-    //const lastDroppedRewards = state.lastDroppedLootNames ?? [];
+    const lootRewards = isBoss
+      ? (state.lastDroppedLootNames ?? [])
+      : (target.lootNames ?? []).map((name) => 
+          lootChance < 100 ? `${name} (${lootChance}%)` : name
+        );
+
     const rawMaterials = target.materialNames ?? target.currencyNames ?? [];
     const bossNames = rawMaterials.filter((name) => {
       const item = content.materials.find((m) => m.name === name);
@@ -653,7 +766,10 @@ function render() {
 
   const renderBagItem = (item) => {
     const row = document.createElement("article");
-    const isNewLootVisible = state.activeTab === "prepare" && state.newLootIds.includes(item.id);
+    
+    // highlight non-Items that are new
+    const isValidTab = state.activeTab === "fight" || state.activeTab === "prepare";
+    const isNewLootVisible = isValidTab && item.slot !== "" && state.newLootIds.includes(item.id);
     row.className = `list-item loot-item${isNewLootVisible ? " is-new-loot" : ""}`;
     
     // Text description container (Column 1)
@@ -769,32 +885,49 @@ function render() {
     return row;
   };
 
-  const weaponSlots = new Set(["hand", "two-hand", "offhand"]);
+  // indicate new items
+  updateBagTabIndicators();
+
+  const sortByRarityDesc = (a, b) => {
+    const rankA = RARITY_ORDER.indexOf(a.rarity.toLowerCase());
+    const rankB = RARITY_ORDER.indexOf(b.rarity.toLowerCase());
+    return rankB - rankA;
+  };
+
+  // Items, sorted alphabetically
   renderList(
     elements.bagItemsList,
-    bagLoot.filter((item) => item.slot === ""),
+    bagLoot.filter((item) => item.slot === "").sort((a, b) => a.name.localeCompare(b.name)),
     "No consumable items in your bag.",
     renderBagItem,
   );
+  
+  // Weapons
+  const weaponSlots = new Set(["hand", "two-hand", "offhand"]);
   renderList(
     elements.bagWeaponsList,
-    bagLoot.filter((item) => weaponSlots.has(item.slot.toLowerCase())),
+    bagLoot.filter((item) => weaponSlots.has(item.slot.toLowerCase())).sort(sortByRarityDesc),
     "No weapons in your bag.",
     renderBagItem,
   );
+  // Armor
   renderList(
     elements.bagArmorList,
-    bagLoot.filter((item) => item.slot !== "" && !weaponSlots.has(item.slot.toLowerCase())),
+    bagLoot.filter((item) => item.slot !== "" && !weaponSlots.has(item.slot.toLowerCase())).sort(sortByRarityDesc),
     "No armor in your bag.",
     renderBagItem,
   );
+
   renderList(
     elements.bagMaterialsList,
     content.materials.filter((item) => (state.currencyInventory[item.id] ?? 0) > 0),
     "No materials in your bag.",
     (item) => {
       const row = document.createElement("article");
-      row.className = "list-item loot-item";
+      
+      // Highlight new materials when not seen yet and count > 0
+      const isNewMaterial = !state.seenMaterials?.[item.id] && (state.currencyInventory[item.id] ?? 0) > 0;
+      row.className = `list-item loot-item${isNewMaterial ? " is-new-loot" : ""}`;
       
       const materialUses = (item.uses ?? item.use ?? "").toLowerCase().split(/[\s,]+/);
       const isCraftMaterial = materialUses.includes("craft");
@@ -807,7 +940,7 @@ function render() {
       const titleSpan = createTextElement("strong", titleClasses, item.name);
       textContainer.append(titleSpan);
       
-      if (isCraftMaterial) {
+      if (isCraftMaterial && (state.activeTab === "shop")) {
         const craftNoteSpan = createTextElement("span", "muted", "(Also used in Crafting)");
         craftNoteSpan.style.display = "block";
         craftNoteSpan.style.fontWeight = "normal";
@@ -1113,6 +1246,33 @@ function closeMenu() {
 }
 
 function selectBagTab(tab) {
+  const previousTab = state.activeBagTab || "items";
+
+  // Clear new loot tags when switching to another tab
+  if (previousTab !== tab) {
+    const weaponSlots = new Set(["hand", "two-hand", "offhand"]);
+
+    if (previousTab === "weapons" && state && content) {
+      state.newLootIds = (state.newLootIds ?? []).filter((id) => {
+        const item = content.loot.find((l) => l.id === id);
+        return !item || !weaponSlots.has(item.slot.toLowerCase());
+      });
+    } else if (previousTab === "armor" && state && content) {
+      state.newLootIds = (state.newLootIds ?? []).filter((id) => {
+        const item = content.loot.find((l) => l.id === id);
+        return !item || item.slot === "" || weaponSlots.has(item.slot.toLowerCase());
+      });
+    } else if (previousTab === "materials" && state && content) {
+      state.seenMaterials = state.seenMaterials || {};
+      for (const item of content.materials) {
+        if ((state.currencyInventory[item.id] ?? 0) > 0) {
+          state.seenMaterials[item.id] = true;
+        }
+      }
+    }
+    state.activeBagTab = tab;
+  }
+
   const tabs = [
     ["items", elements.bagItemsTab, elements.bagItemsPanel],
     ["weapons", elements.bagWeaponsTab, elements.bagWeaponsPanel],
@@ -1125,6 +1285,51 @@ function selectBagTab(tab) {
     button.tabIndex = selected ? 0 : -1;
     panel.hidden = !selected;
   }
+
+  render();
+  saveState();
+}
+
+// Add inside updateBagTabIndicators function or render flow
+function updateBagTabIndicators() {
+  if (!content || !state) return;
+
+  const weaponSlots = new Set(["hand", "two-hand", "offhand"]);
+  const hasNewWeapon = (state.newLootIds ?? []).some((id) => {
+    const item = content.loot.find((l) => l.id === id);
+    return item && weaponSlots.has(item.slot.toLowerCase());
+  });
+
+  const hasNewArmor = (state.newLootIds ?? []).some((id) => {
+    const item = content.loot.find((l) => l.id === id);
+    return item && item.slot !== "" && !weaponSlots.has(item.slot.toLowerCase());
+  });
+
+  state.seenMaterials = state.seenMaterials || {};
+  const hasNewMaterial = content.materials.some((item) => {
+    const count = state.currencyInventory[item.id] ?? 0;
+    return count > 0 && !state.seenMaterials[item.id];
+  });
+
+  const setIndicator = (button, show) => {
+    let indicator = button.querySelector(".tab-indicator");
+    if (show) {
+      if (!indicator) {
+        indicator = document.createElement("span");
+        indicator.className = "tab-indicator";
+        indicator.textContent = "*";
+        button.appendChild(indicator);
+      }
+    } else {
+      if (indicator) {
+        indicator.remove();
+      }
+    }
+  };
+
+  setIndicator(elements.bagWeaponsTab, hasNewWeapon);
+  setIndicator(elements.bagArmorTab, hasNewArmor);
+  setIndicator(elements.bagMaterialsTab, hasNewMaterial);
 }
 
 function renderCombatTab() {
@@ -1149,7 +1354,7 @@ function renderCombatTab() {
   elements.shopSection.hidden = state.activeTab !== "shop";
 }
 
-function selectCombatTab(tabName) {
+async function selectCombatTab(tabName) {
   if (tabName === "shop" && !state.shopUnlocked) {
     elements.shopLockedTooltip.hidden = false;
     window.clearTimeout(shopTooltipTimeout);
@@ -1165,11 +1370,21 @@ function selectCombatTab(tabName) {
   if (previousTab === "shop") {
     state.shopVisited = true;
   }
-  if (tabName === "fight" && state.shopVisited
-      && !window.confirm("Returning to Fight will lock the Shop until another Boss is defeated. Return to Fight?")) {
-    return;
-  }
+
   if (tabName === "fight" && state.shopVisited) {
+    // Confirm you want to leave the shop
+    const confirmed = await showConfirmDialog(
+      "Leave Shop?",
+      "It will be locked until the next Boss is defeated.",
+      "Yes",
+      "Cancel",
+      true // marks confirm button as danger/red style
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
     state.shopUnlocked = false;
     state.shopVisited = false;
     state.bossShopHintDismissed = true;
@@ -1183,6 +1398,7 @@ function selectCombatTab(tabName) {
     state.newLootIds = [];
     state.prepareViewed = false;
   }
+  
   state.activeTab = tabName;
   lastTickAt = Date.now();
   renderCombatTab();
@@ -1263,7 +1479,6 @@ for (const [tab, tabName] of combatTabs) {
     }
   });
 }
-
 
 elements.bagItemsTab.addEventListener("click", () => selectBagTab("items"));
 elements.bagWeaponsTab.addEventListener("click", () => selectBagTab("weapons"));
@@ -1460,14 +1675,21 @@ elements.copyRestoreKey.addEventListener("click", async () => {
   }
 });
 
-elements.resetGame.hidden = !DEBUG_ENABLED;
+elements.resetGame.hidden = false;//!DEBUG_ENABLED;
 elements.cheatMenuItem.hidden = !DEBUG_ENABLED;
-function restartGame() {
-  // if (!window.confirm("Start over and clear all progress in this browser?")) {
-  //   return;
-  // }
+async function restartGame() {
+  // Confirm with user first
+  const confirmed = await showConfirmDialog(
+    "Confirm Reset",
+    "Are you sure you want to reset? All progress will be lost.",
+    "Yes",
+    "Cancel",
+    true // marks confirm button as danger/red style
+  );
 
-  resetAndReload();
+  if (confirmed) {
+    resetAndReload();
+  }
 }
 
 function resetAndReload() {
@@ -1511,7 +1733,9 @@ async function startGame() {
 
     content = await loadGameContent(SHEET_CSV_URLS);
     try {
-      elements.swapInventoryOrder.checked = localStorage.getItem(INVENTORY_ORDER_KEY) === "true";
+      const savedSwapOrder = localStorage.getItem(INVENTORY_ORDER_KEY);
+      elements.swapInventoryOrder.checked = savedSwapOrder === null || savedSwapOrder === "true";
+
       const savedHideStatusText = localStorage.getItem(HIDE_STATUS_TEXT_KEY);
       elements.hideStatusText.checked = savedHideStatusText === null || savedHideStatusText === "true";
       

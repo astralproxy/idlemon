@@ -105,6 +105,8 @@ export function createShopOffers(content, random = Math.random) {
 function shopLoot(content) {
   return content.loot.filter((item) => {
     if (item.slot !== "") return false;
+
+    // exclude things with the Notes 'noshop' in data
     const notes = (item.notes ?? item.Notes ?? "").trim().toLowerCase();
     return !notes.includes("noshop");
   });
@@ -179,9 +181,19 @@ export function addLootToBag(state, content, lootId) {
   if (!item) {
     throw new Error("That loot item is not available.");
   }
-  if (getTotalItemCount(state, item.id) >= 9) {
-    throw new Error("You already hold the maximum of 9 of this item.");
+
+  // Cannot obtain another unique item if already carried or equipped
+  const isUnique = (item.notes ?? "").toLowerCase().includes("unique");
+  if (isUnique) {
+    const totalOwned = (state.lootInventory[lootId] ?? 0) + (Object.values(state.gear).includes(lootId) ? 1 : 0);
+    if (totalOwned > 0) {
+      return false;
+    }
   }
+  else if (getTotalItemCount(state, item.id) >= 9) {
+    return false; // max number of Item already held
+  }
+
   state.lootInventory[item.id] = (state.lootInventory[item.id] ?? 0) + 1;
   markLootNew(state, item.id);
 }
@@ -275,6 +287,7 @@ export function createInitialState(content, now = Date.now()) {
     currencyInventory: {},
     currencyBalance: 0,
     kills: {},
+    statusLog: [],
     updatedAt: now,
   };
 }
@@ -462,6 +475,10 @@ export function parseSavedState(serialized, content) {
   const autoHealThreshold = Number.isInteger(state.autoHealThreshold) && state.autoHealThreshold > 0
     ? state.autoHealThreshold
     : 100;
+  
+  const seenMaterials = state.seenMaterials && typeof state.seenMaterials === "object" && !Array.isArray(state.seenMaterials)
+    ? state.seenMaterials
+    : {}; // Add this block
 
   return {
     version: SAVE_VERSION,
@@ -489,8 +506,10 @@ export function parseSavedState(serialized, content) {
     recoveryWarnings: [...recoveryWarnings, ...lootRecoveryWarnings],
     gear,
     currencyInventory,
+    seenMaterials,
     currencyBalance,
     kills,
+    statusLog: [], // fresh every time
     updatedAt: state.updatedAt,
   };
 }
@@ -859,27 +878,43 @@ function grantKillRewards(state, content, monster, random = Math.random) {
       : [rawLootNames].filter(Boolean);
 
   const droppedLootNames = [];
+  let lastRoll = null;
   if (lootNames.length > 0) {
-    const roll = Math.floor(random() * 101);
-    const dropped = lootChance >= 100 || roll < lootChance;
-    state.lastLootCheck = {
-      monsterName: monster.name,
-      roll,
-      chance: lootChance,
-      dropped,
-    };
-    if (dropped) {
-      for (const name of lootNames) {
+    const rawLootChances = monster.lootChances ?? monster.lootChance ?? 100;
+    const lootChances = typeof rawLootChances === "string"
+      ? rawLootChances.split(/,\s*/).map((val) => Number(val.trim()))
+      : Array.isArray(rawLootChances)
+        ? rawLootChances
+        : [rawLootChances];
+
+    for (let i = 0; i < lootNames.length; i++) {
+      const name = lootNames[i];
+      const chance = Number.isFinite(lootChances[i]) ? lootChances[i] : (lootChances[0] ?? 100);
+      const roll = Math.floor(random() * 101);
+      const dropped = chance >= 100 || roll < chance;
+      lastRoll = roll;
+
+      if (dropped) {
         const item = content.loot.find((loot) => loot.name.toLowerCase() === name.toLowerCase());
         if (item) {
-          if (getTotalItemCount(state, item.id) < 9) {
+          const isUnique = (item.notes ?? "").toLowerCase().includes("unique");
+          const totalOwned = (state.lootInventory[item.id] ?? 0) + (Object.values(state.gear).includes(item.id) ? 1 : 0);
+
+          if (isUnique ? totalOwned === 0 : getTotalItemCount(state, item.id) < 9) {
             state.lootInventory[item.id] = (state.lootInventory[item.id] ?? 0) + 1;
             markLootNew(state, item.id);
           }
+
           droppedLootNames.push(item.name);
         }
       }
     }
+    state.lastLootCheck = {
+      monsterName: monster.name,
+      roll: lastRoll,
+      chance: lootChance,
+      dropped: droppedLootNames.length > 0,
+    };
   } else {
     state.lastLootCheck = {
       monsterName: monster.name,
@@ -908,7 +943,9 @@ function grantKillRewards(state, content, monster, random = Math.random) {
       const item = content.materials.find((material) => material.name === name);
       if (!item) continue;
 
-      const isBoss = (item.notes ?? "").trim().toLowerCase() === "boss";
+      const notes = (item.notes ?? item.Notes ?? "").trim().toLowerCase();
+      const isBoss = notes === "boss";
+      const isUnique = notes.includes("unique");
 
       if (isBoss) {
         bossMaterials.push(item);
@@ -918,7 +955,11 @@ function grantKillRewards(state, content, monster, random = Math.random) {
           const soulValue = item.value > 0 ? item.value : 1;
           state.currencyBalance = (state.currencyBalance ?? 0) + (materialCount * soulValue);
         } else {
-          state.currencyInventory[item.id] = (state.currencyInventory[item.id] ?? 0) + materialCount;
+          const currentCount = state.currencyInventory[item.id] ?? 0;
+          const countToAdd = isUnique ? Math.min(1, Math.max(0, 1 - currentCount)) : materialCount;
+          if (countToAdd > 0) {
+            state.currencyInventory[item.id] = currentCount + countToAdd;
+          }
         }
       }
     }
@@ -927,6 +968,7 @@ function grantKillRewards(state, content, monster, random = Math.random) {
     if (bossMaterials.length > 0) {
       const selectedBossItem = bossMaterials[Math.floor(Math.random() * bossMaterials.length)];
       state.currencyInventory[selectedBossItem.id] = (state.currencyInventory[selectedBossItem.id] ?? 0) + 1;
+      
       // Save the specific chosen item name for UI display
       state.lastBossDrop = selectedBossItem.name;
     } else {
