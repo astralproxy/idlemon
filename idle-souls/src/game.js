@@ -103,7 +103,11 @@ export function createShopOffers(content, random = Math.random) {
 }
 
 function shopLoot(content) {
-  return content.loot.filter((item) => item.slot === "");
+  return content.loot.filter((item) => {
+    if (item.slot !== "") return false;
+    const notes = (item.notes ?? item.Notes ?? "").trim().toLowerCase();
+    return !notes.includes("noshop");
+  });
 }
 
 export function refreshShop(state, content, random = Math.random) {
@@ -242,10 +246,7 @@ function unlockedMonsters(state, content) {
 }
 
 export function createInitialState(content, now = Date.now()) {
-  const firstMonster = unlockedMonsters({ level: 1 }, content)[0];
-  if (!firstMonster) {
-    throw new Error("No monster is available at level 1.");
-  }
+  //const firstMonster = unlockedMonsters({ level: 1 }, content)[0];
   return {
     version: SAVE_VERSION,
     level: 1,
@@ -254,14 +255,14 @@ export function createInitialState(content, now = Date.now()) {
     autoHealEnabled: false,
     autoHealThreshold: 100,
     gameOver: false,
-    targetMonsterId: firstMonster.id,
+    targetMonsterId: null,//firstMonster.id,
     pendingTargetMonsterId: null,
-    monsterHp: firstMonster.health,
+    monsterHp: 0,//firstMonster.health,
+    awaitingMonsterSelection: true,//false,
     attackRemainder: 0,
     nextHitDefense: 0,
     nextHitDefensePercent: 0,
     activeTab: "fight",
-    awaitingMonsterSelection: false,
     shopUnlocked: false,
     shopVisited: false,
     bossShopHintDismissed: false,
@@ -970,6 +971,7 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
         target = content.monsters.find((monster) => monster.id === state.pendingTargetMonsterId);
         state.targetMonsterId = target.id;
         state.pendingTargetMonsterId = null;
+        
       }
       state.monsterHp = -1; // Move to reload state for the following tick
       break; // Pause combat for this tick while showing 0 HP

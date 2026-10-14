@@ -120,6 +120,7 @@ function parseMonster(row) {
     damage: number(row.Damage, "Damage", 0),
     xp: level * 10,
     unlock_level: level,
+    location: row.Location?.trim() ?? "",
     lootChance: row["Loot Chance"]?.trim() ? percentage(row["Loot Chance"], "Loot Chance") : 100,
     materialCount: row["Mat Count"]?.trim() ? integer(row["Mat Count"], "Mat Count", 0) : 1,
     materialChance: row["Mat Chance"]?.trim() ? percentage(row["Mat Chance"], "Mat Chance") : 100,

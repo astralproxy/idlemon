@@ -112,7 +112,7 @@
             <span id="prepare-monster-health" class="monster-health-label"></span>
           </div>
         </section>
-
+        <hr>
         <section class="panel player-stats-panel" aria-labelledby="player-stats-title">
           <div class="player-stats-heading">
             <h2 id="player-stats-title">Player Stats</h2>
@@ -177,11 +177,15 @@
             <div id="bag-content">
               <div class="bag-tabs" role="tablist" aria-label="Bag categories">
                 <button id="bag-items-tab" class="bag-tab" type="button" role="tab" aria-selected="true" aria-controls="bag-items-panel" tabindex="0">Items</button>
-                <button id="bag-armor-tab" class="bag-tab" type="button" role="tab" aria-selected="false" aria-controls="bag-armor-panel" tabindex="-1">Equipment</button>
+                <button id="bag-weapons-tab" class="bag-tab" type="button" role="tab" aria-selected="false" aria-controls="bag-weapons-panel" tabindex="-1">Weapons</button>
+                <button id="bag-armor-tab" class="bag-tab" type="button" role="tab" aria-selected="false" aria-controls="bag-armor-panel" tabindex="-1">Armor</button>
                 <button id="bag-materials-tab" class="bag-tab" type="button" role="tab" aria-selected="false" aria-controls="bag-materials-panel" tabindex="-1">Materials</button>
               </div>
               <div id="bag-items-panel" role="tabpanel" aria-labelledby="bag-items-tab">
                 <div id="bag-items-list" class="item-list"></div>
+              </div>
+              <div id="bag-weapons-panel" role="tabpanel" aria-labelledby="bag-weapons-tab" hidden>
+                <div id="bag-weapons-list" class="item-list"></div>
               </div>
               <div id="bag-armor-panel" role="tabpanel" aria-labelledby="bag-armor-tab" hidden>
                 <div id="bag-armor-list" class="item-list"></div>
