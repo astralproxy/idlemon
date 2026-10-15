@@ -384,9 +384,12 @@ h3 {
   gap: 8px;
 }
 .panel.player-stats-pan
-.shop-price {
+.shop-price,
+.bag-sale-value {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
   color: var(--accent);
-  font-size: 0.82rem;
   white-space: nowrap;
 }
 
@@ -480,6 +483,71 @@ h3 {
 
 .inventory-grid.is-shop #bag-panel {
   order: -1;
+}
+
+/* Container for shop sale actions */
+.list-item.loot-item .bag-sale-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+/* Base styles for non-shop views */
+.bag-sale-stacked {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* --- SHOP OVERRIDES --- */
+
+/* 1. Turn shop loot cards into a 2-row grid */
+.inventory-grid.is-shop .list-item.loot-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+/* 2. Text details on the left span both rows */
+.inventory-grid.is-shop .list-item.loot-item .skill-copy,
+.inventory-grid.is-shop .list-item.loot-item .item-details {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  min-width: 0;
+}
+
+/* 3. Unwrap action containers so children map directly to the grid */
+.inventory-grid.is-shop .list-item.loot-item .bag-sale-actions,
+.inventory-grid.is-shop .list-item.loot-item .bag-sale-stacked {
+  display: contents;
+}
+
+/* 4. Top row: Value text aligned right over columns 2 and 3 */
+.inventory-grid.is-shop .list-item.loot-item .bag-sale-value {
+  grid-column: 2 / span 2;
+  grid-row: 1;
+  justify-self: end;
+}
+
+/* 5. Bottom row: x1 badge in column 2 */
+.inventory-grid.is-shop .list-item.loot-item .badge {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: end;
+}
+
+/* 6. Bottom row: Sell button in column 3 */
+.inventory-grid.is-shop .list-item.loot-item .button {
+  grid-column: 3;
+  grid-row: 2;
+  justify-self: end;
 }
 
 .setting-option {
@@ -1045,36 +1113,6 @@ button:focus-visible {
 
 .list-item.loot-item .badge {
   justify-self: center;
-}
-
-/* Container for shop sale actions */
-.list-item.loot-item .bag-sale-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  min-width: 0;
-  overflow: hidden;
-}
-
-/* Stacks Value text directly above the Sell button */
-.bag-sale-stacked {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 4px;
-  min-width: 0;
-  max-width: 100%;
-}
-
-.bag-sale-value {
-  color: var(--accent);
-  font-size: 0.78rem;
-  text-align: right;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
 }
 
 .item-details {
