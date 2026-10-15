@@ -358,6 +358,7 @@ export function parseSavedState(serialized, content) {
     throw new Error("The saved game mode is invalid.");
   }
   const noSelectedMonster = targetMonsterId === null;
+  const isSpecialEnemyType = ["boss", "miniboss", "phantom"].includes(target.type.toLowerCase());
   if (!target) {
     if (monsterHp !== 0 || !awaitingMonsterSelection || pendingTargetMonsterId !== null) {
       recoveryWarnings.push("Repaired saved monster selection.");
@@ -365,13 +366,13 @@ export function parseSavedState(serialized, content) {
     monsterHp = 0;
     awaitingMonsterSelection = true;
     pendingTargetMonsterId = null;
-  } else if ((target.type.toLowerCase() === "boss" || target.type.toLowerCase() === "miniboss") && (target.type.toLowerCase() !== "boss" || shopUnlocked) && monsterHp === 0) {
+  } else if (isSpecialEnemyType && (target.type.toLowerCase() !== "boss" || shopUnlocked) && monsterHp === 0) {
     if (!awaitingMonsterSelection || pendingTargetMonsterId !== null) {
       recoveryWarnings.push("Repaired saved Boss defeat state.");
     }
     awaitingMonsterSelection = true;
     pendingTargetMonsterId = null;
-  } else if (awaitingMonsterSelection && (target.type.toLowerCase() === "boss" || target.type.toLowerCase() === "miniboss") && (target.type.toLowerCase() !== "boss" || shopUnlocked)) {
+  } else if (awaitingMonsterSelection && isSpecialEnemyType && (target.type.toLowerCase() !== "boss" || shopUnlocked)) {
     if (monsterHp !== 0 || pendingTargetMonsterId !== null) {
       recoveryWarnings.push("Repaired saved Boss defeat state.");
     }
@@ -702,18 +703,20 @@ export function useLoot(state, content, lootId, random = Math.random) {
       state.monsterHp = 0; // Lock at 0 so it renders empty
       grantKillRewards(state, content, target, random);
       
-      if (target.type.toLowerCase() === "boss" || target.type.toLowerCase() === "miniboss") {
-        if (target.type.toLowerCase() === "boss") {
-          state.shopUnlocked = true;
-          state.shopVisited = false;
-          state.bossShopHintDismissed = false;
-        }
-
-        // same for boss or miniboss
+      const enemytype = target.type.toLowerCase();
+      if (enemytype === "boss" || enemytype === "miniboss" || enemytype === "phantom") {
+        // Halt game advance for all special enemy Types
         state.awaitingMonsterSelection = true;
         state.pendingTargetMonsterId = null;
         state.prepareViewed = false;
         state.attackRemainder = 0;
+
+        // Real bosses also open the shop
+        if (enemytype === "boss") {
+          state.shopUnlocked = true;
+          state.shopVisited = false;
+          state.bossShopHintDismissed = false;
+        }
       }
       // For regular monsters, if you want it to reset after an item kill, 
       // you can let the next tick handle it or handle the pending switch:
@@ -1040,18 +1043,20 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
       state.monsterHp = 0; // Lock health at 0 so it renders empty for the death tick
       grantKillRewards(state, content, target, random);
       
-      if (target.type.toLowerCase() === "boss" || target.type.toLowerCase() === "miniboss") {
-        if (target.type.toLowerCase() === "boss") {
-          state.shopUnlocked = true;
-          state.shopVisited = false;
-          state.bossShopHintDismissed = false;
-        }
-
-        // same for boss or miniboss
+      const enemytype = target.type.toLowerCase();
+      if (enemytype === "boss" || enemytype === "miniboss" || enemytype === "phantom") {
+        // Halt game advance for all special enemy Types
         state.awaitingMonsterSelection = true;
         state.pendingTargetMonsterId = null;
         state.prepareViewed = false;
         state.attackRemainder = 0;
+
+        // Real bosses also open the shop
+        if (enemytype === "boss") {
+          state.shopUnlocked = true;
+          state.shopVisited = false;
+          state.bossShopHintDismissed = false;
+        }
       }
       
       break; // Stop further attacks so the 0 HP state is displayed

@@ -423,19 +423,20 @@ function populateMonsterSelect() {
       item.classList.add("is-disabled");
     } else {
       const isPendingTarget = monster.id === state.pendingTargetMonsterId;
-      const isBoss = monster.type.toLowerCase() === "boss" || monster.type.toLowerCase() === "miniboss";
-      if (isBoss) {
+      const isSpecialEnemy = monster.type.toLowerCase() === "boss" ||
+                             monster.type.toLowerCase() === "miniboss" ||
+                             monster.type.toLowerCase() === "phantom";
+      if (isSpecialEnemy) {
         item.classList.add("boss-item");
       }
-      const isDefeatedBoss = isBoss && (state.kills[monster.id] ?? 0) > 0;
-      const isDisabled = isDefeatedBoss
-        || (state.awaitingMonsterSelection && monster.id === state.targetMonsterId);
+      const isDefeatedSpecial = isSpecialEnemy && (state.kills[monster.id] ?? 0) > 0;
+      const isDisabled = isDefeatedSpecial || (state.awaitingMonsterSelection && monster.id === state.targetMonsterId);
       
       const displayName = monsterDisplayName(monster);
       const monsterLabel = `${displayName}`;
       item.textContent = isPendingTarget ? `${monsterLabel} (after current monster)` : monsterLabel;
 
-      if (isDefeatedBoss) {
+      if (isDefeatedSpecial) {
         item.classList.add("boss-defeated");
       }
       if (isDisabled) {
@@ -572,10 +573,10 @@ function render() {
   elements.killCount.hidden = !target || state.awaitingMonsterSelection;
   if (target) {
     // Normal enemies show all loot as rewards because we don't take time to see what actually dropped
-    // Boss kills pause the game, so we only want to see what actually dropped
-    const isBossType = ["boss", "miniboss"].includes(target.type.toLowerCase());
+    // Special enemy kills (e.g. boss) pause the game, so we only want to see what actually dropped
+    const isSpecialEnemyType = ["boss", "miniboss", "phantom"].includes(target.type.toLowerCase());
     const lootChance = target.lootChance ?? 100;
-    const lootRewards = isBossType
+    const lootRewards = isSpecialEnemyType
       ? (state.lastDroppedLootNames ?? [])
       : (target.lootNames ?? []).map((name) => 
           lootChance < 100 ? `${name} (${lootChance}%)` : name
@@ -607,8 +608,10 @@ function render() {
         let rewardString = "";
         if (notes.includes("boss")) {
           rewardString = name;
+        } else if (notes.includes("unique")) {
+          rewardString = name; // Excludes the mat count number
         } else if (notes.includes("upgrade")) {
-          rewardString = `${name}`;
+          rewardString = name;
         } else {
           rewardString = `${numberFormat.format(target.materialCount ?? 1)} ${name}`;
         }
@@ -625,7 +628,7 @@ function render() {
 
     const isBoss = target.type.toLowerCase() === "boss";
     elements.bossKilledHeading.textContent = isBoss ? "VICTORY ACHIEVED" : "You Defeated";
-    elements.bossShopHint.hidden = !isBoss; // Hide for minibosses
+    elements.bossShopHint.hidden = !isBoss; // Hide for minibosses, phantoms
     elements.monsterLevel.textContent = `Level ${target.level}`;
     elements.bossKilledName.textContent = target.name;
     elements.bossKilledReward.replaceChildren(
