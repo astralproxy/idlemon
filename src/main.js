@@ -110,7 +110,6 @@ const elements = {
   sellQuantityForm: document.querySelector("#sell-quantity-form"),
   // end SELL quanity dialog
 
-  playerStatsPanel: document.querySelector(".player-stats-panel"),
   monsterSection: document.querySelector("#monster-section"),
   activeMonsterCard: document.querySelector("#active-monster-card"),
   bossKilledCard: document.querySelector("#boss-killed-card"),
@@ -122,12 +121,14 @@ const elements = {
   prepareMonsterName: document.querySelector("#prepare-monster-name"),
   prepareMonsterHealth: document.querySelector("#prepare-monster-health"),
   prepareMonsterHealthMeter: document.querySelector("#prepare-monster-health-meter"),
+
   gameOver: document.querySelector("#game-over"),
   gameOverStats: document.querySelector("#game-over-stats"),
   startOver: document.querySelector("#start-over"),
   revivePrompt: document.querySelector("#revive-prompt"),
   reviveMessage: document.querySelector("#revive-message"),
   revivePlayer: document.querySelector("#revive-player"),
+
   level: document.querySelector("#player-level"),
   xp: document.querySelector("#player-xp"),
   xpMeter: document.querySelector("#xp-meter"),
@@ -136,6 +137,7 @@ const elements = {
   hpMax: document.querySelector("#player-max-hp"),
   armor: document.querySelector("#player-armor"),
   damage: document.querySelector("#player-damage"),
+  playerStatsPanel: document.querySelector(".player-stats-panel"),
   playerStatsToggle: document.querySelector("#player-stats-toggle"),
   playerStatsDetails: document.querySelector("#player-stats-details"),
   playerStatsCompact: document.querySelector("#player-stats-compact"),
@@ -144,6 +146,7 @@ const elements = {
   compactPlayerHpMax: document.querySelector("#compact-player-max-hp"),
   compactPlayerArmor: document.querySelector("#compact-player-armor"),
   compactPlayerDamage: document.querySelector("#compact-player-damage"),
+
   monsterDropdown: document.querySelector("#monster-dropdown"),
   monsterToggleBtn: document.querySelector("#monster-dropdown .dropdown-toggle"),
   monsterMenu: document.querySelector("#monster-dropdown .dropdown-menu"),
@@ -159,7 +162,10 @@ const elements = {
   killCount: document.querySelector("#kill-count"),
   defeatedCount: document.querySelector("#defeated-count"),
   unlockedCount: document.querySelector("#unlocked-count"),
+  
   gearList: document.querySelector("#gear-list"),
+  gearToggle: document.querySelector("#gear-toggle"),
+  gearContent: document.querySelector("#gear-content"),
   bagToggle: document.querySelector("#bag-toggle"),
   bagContent: document.querySelector("#bag-content"),
   bagShopNote: document.querySelector("#bag-shop-note"),
@@ -175,8 +181,6 @@ const elements = {
   bagMaterialsTab: document.querySelector("#bag-materials-tab"),
   bagMaterialsPanel: document.querySelector("#bag-materials-panel"),
   bagMaterialsList: document.querySelector("#bag-materials-list"),
-  gearToggle: document.querySelector("#gear-toggle"),
-  gearContent: document.querySelector("#gear-content"),
 };
 
 const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
@@ -776,8 +780,27 @@ function render() {
   const quickUseItems = bagLoot.filter((item) => (
     item.slot === "" && !QUICK_ITEM_IGNORED_SKILLS.has(item.skill.toLowerCase())
   ));
-  elements.quickItemsSection.hidden = quickUseItems.length === 0;
+
+  quickUseItems.sort((a, b) => {
+    const getEffect = (item) => {
+      const skill = content.skills.find((candidate) => candidate.name === item.skill);
+      return skill ? skill.effect : item.skill.toLowerCase();
+    };
+    const effA = getEffect(a);
+    const effB = getEffect(b);
+
+    const rank = (eff) => (eff === "heal" ? 1 : eff === "damage_flat" ? 2 : 3);
+    const rA = rank(effA);
+    const rB = rank(effB);
+
+    if (rA !== rB) return rA - rB;
+    if (rA === 1 || rA === 2) return (a.effectValue ?? 0) - (b.effectValue ?? 0);
+    return a.name.localeCompare(b.name);
+  });
+
+  elements.quickItemsSection.hidden = false;//quickUseItems.length === 0;
   elements.quickItemsList.replaceChildren();
+
   for (const item of quickUseItems) {
     const count = state.lootInventory[item.id];
     const button = document.createElement("button");
@@ -1447,20 +1470,21 @@ function selectBagTab(tab) {
 // Add inside updateBagTabIndicators function or render flow
 function updateBagTabIndicators() {
   if (!content || !state) return;
+  const currentTab = state.activeBagTab || "items";
 
   const weaponSlots = new Set(["hand", "two-hand", "offhand"]);
-  const hasNewWeapon = (state.newLootIds ?? []).some((id) => {
+  const hasNewWeapon = currentTab !== "weapons" &&(state.newLootIds ?? []).some((id) => {
     const item = content.loot.find((l) => l.id === id);
     return item && weaponSlots.has(item.slot.toLowerCase());
   });
 
-  const hasNewArmor = (state.newLootIds ?? []).some((id) => {
+  const hasNewArmor = currentTab !== "armor" && (state.newLootIds ?? []).some((id) => {
     const item = content.loot.find((l) => l.id === id);
     return item && item.slot !== "" && !weaponSlots.has(item.slot.toLowerCase());
   });
 
   state.seenMaterials = state.seenMaterials || {};
-  const hasNewMaterial = content.materials.some((item) => {
+  const hasNewMaterial = currentTab !== "materials" && content.materials.some((item) => {
     const count = state.currencyInventory[item.id] ?? 0;
     return count > 0 && !state.seenMaterials[item.id];
   });
@@ -1560,7 +1584,7 @@ async function selectCombatTab(tabName) {
     ? state.targetMonsterId === null
       ? "Choose an enemy to begin fighting."
       : state.awaitingMonsterSelection
-        ? "Boss defeated! Choose a new enemy to continue."
+        ? "Choose a new enemy to continue."
         : "Fight mode. Combat continues automatically."
     : state.awaitingMonsterSelection
       ? `${tabName === "shop" ? "Shop" : "Prepare"} mode. Combat paused.`
@@ -1664,7 +1688,7 @@ function tick() {
   if (!wasAwaitingMonsterSelection && state.awaitingMonsterSelection) {
     setStatus(state.targetMonsterId === null
       ? "Fled from combat. Choose a enemy when you're ready to fight again."
-      : "Boss defeated! Choose a new enemy to continue.");
+      : "Choose a new enemy to continue.");
     populateMonsterSelect();
     render();
     saveState();
@@ -1953,11 +1977,11 @@ async function startGame() {
         if (offlineSeconds >= 1) {
           advanceGame(state, content, offlineSeconds * gameSpeed);
           setStatus(state.awaitingMonsterSelection && !wasAwaitingMonsterSelection
-            ? "Boss defeated! Choose a new enemy to continue."
+            ? "Choose a new enemy to continue."
             : `Welcome back, chosen undead.`);
         } else {
           setStatus(state.awaitingMonsterSelection
-            ? "Boss defeated! Choose a new enemy to continue."
+            ? "Choose a new enemy to continue."
             : "Combat and rewards happen automatically.");
         }
         const startupWarnings = [...(state.recoveryWarnings ?? []), ...content.warnings];
