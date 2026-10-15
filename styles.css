@@ -808,6 +808,10 @@ button:focus-visible {
   cursor: pointer;
 }
 
+.custom-dropdown .dropdown-item.is-italic {
+  font-style: italic;
+}
+
 .custom-dropdown .dropdown-item.is-selected {
   color: #ffb074; /* Light orange color for the selected item */
   /*font-weight: bold; /* Optional: make it stand out */

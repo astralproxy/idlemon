@@ -837,6 +837,8 @@ function findReviveSkill(item, content) {
 
 export function selectMonster(state, content, monsterId) {
   const monster = content.monsters.find((candidate) => candidate.id === monsterId);
+
+  // Handle some edge cases
   if (!monster) {
     throw new Error("That monster is not unlocked.");
   }
@@ -846,6 +848,17 @@ export function selectMonster(state, content, monsterId) {
   if (state.awaitingMonsterSelection && state.targetMonsterId && monster.id === state.targetMonsterId) {
     throw new Error("Choose a different monster after defeating a Boss.");
   }
+
+  // Check requirements
+  if (monster.requirements) {
+    const requiredMaterial = content.materials.find(
+      (m) => m.name.toLowerCase() === monster.requirements.toLowerCase()
+    );
+    if (requiredMaterial && (state.currencyInventory[requiredMaterial.id] ?? 0) < 1) {
+      throw new Error(`Requires ${monster.requirements} in your bag to select.`);
+    }
+  }
+
   if (state.awaitingMonsterSelection) {
     state.targetMonsterId = monster.id;
     state.monsterHp = monster.health;

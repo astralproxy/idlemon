@@ -405,8 +405,16 @@ function populateMonsterSelect() {
     currentSelectedText = "Choose an enemy...";
   }
 
+  // Find first undefeated boss to block progress
+  // const undefeatedBossIndex = content.monsters.findIndex(
+  //   (monster) => monster.type.toLowerCase() === "boss" && (state.kills[monster.id] ?? 0) === 0
+  // );
+
+  // Find the first required (non-optional) boss that hasn't been defeated yet
   const undefeatedBossIndex = content.monsters.findIndex(
-    (monster) => monster.type.toLowerCase() === "boss" && (state.kills[monster.id] ?? 0) === 0
+    (monster) => monster.type.toLowerCase() === "boss" &&
+      !monster.isOptional &&
+      (state.kills[monster.id] ?? 0) === 0
   );
 
   for (let index = 0; index < content.monsters.length; index += 1) {
@@ -415,13 +423,28 @@ function populateMonsterSelect() {
     item.className = "dropdown-item";
     item.dataset.value = monster.id;
 
+    // Check requirement satisfaction
+    let missingRequirement = false;
+    if (monster.requirements) {
+      const reqMaterial = content.materials.find(
+        (m) => m.name.toLowerCase() === monster.requirements.toLowerCase()
+      );
+      if (reqMaterial && (state.currencyInventory[reqMaterial.id] ?? 0) < 1) {
+        missingRequirement = true;
+      }
+    }
+
     const isObscured = undefeatedBossIndex !== -1 && index > undefeatedBossIndex;
     const isSelected = !state.awaitingMonsterSelection && monster.id === (state.pendingTargetMonsterId ?? state.targetMonsterId);
 
     if (isObscured) {
       item.textContent = "??? (Beat boss to reveal)";
       item.classList.add("is-disabled");
-    } else {
+    } else if (missingRequirement) {
+      item.textContent = `${monsterDisplayName(monster)} (req: ${monster.requirements})`;
+      item.classList.add("is-italic", "is-disabled");
+    }else {
+      item.classList.remove("is-italic"); // just in case
       const isPendingTarget = monster.id === state.pendingTargetMonsterId;
       const isSpecialEnemy = monster.type.toLowerCase() === "boss" ||
                              monster.type.toLowerCase() === "miniboss" ||
@@ -433,8 +456,7 @@ function populateMonsterSelect() {
       const isDisabled = isDefeatedSpecial || (state.awaitingMonsterSelection && monster.id === state.targetMonsterId);
       
       const displayName = monsterDisplayName(monster);
-      const monsterLabel = `${displayName}`;
-      item.textContent = isPendingTarget ? `${monsterLabel} (after current monster)` : monsterLabel;
+      item.textContent = isPendingTarget ? `${displayName} (after current)` : `${displayName}`;
 
       if (isDefeatedSpecial) {
         item.classList.add("boss-defeated");
@@ -1211,30 +1233,144 @@ function renderCheatLoot() {
   });
   elements.cheatLootList.append(godModeButton);
 
-  for (const item of content.loot) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "list-item cheat-loot-item";
-    button.append(
-      createTextElement("strong", `loot-rarity rarity-${item.rarity.toLowerCase()}`, item.name),
-      createTextElement(
-        "span",
-        "muted",
-        `${item.slot ? `${item.slot}` : "Consumable"} · Value ${numberFormat.format(item.value)} · ${item.skill || "No associated skill"} · In Bag: ${state.lootInventory[item.id] ?? 0}`,
-      ),
-    );
-    button.addEventListener("click", () => {
+  // --- REMOVE ITEM CHEAT DROPDOWN ---
+  const removeContainer = document.createElement("div");
+  removeContainer.className = "cheat-remove-section";
+  removeContainer.style.cssText = "margin-top: 16px; display: flex; flex-direction: column; gap: 8px;";
+  
+  const removeLabel = document.createElement("label");
+  removeLabel.textContent = "Remove Item / Material from Inventory:";
+  
+  const removeSelect = document.createElement("select");
+  const defaultOption = document.createElement("option");
+  defaultOption.value = "";
+  defaultOption.textContent = "Select an item to remove...";
+  defaultOption.disabled = true;
+  defaultOption.selected = true;
+  removeSelect.appendChild(defaultOption);
+
+  // Gather all items and materials currently in inventory
+  const inventoryItems = [];
+
+  for (const [lootId, count] of Object.entries(state.lootInventory ?? {})) {
+    if (count > 0) {
+      const item = content.loot.find((l) => l.id === lootId);
+      if (item) inventoryItems.push({ id: item.id, name: item.name, type: "loot", count });
+    }
+  }
+
+  for (const [matId, count] of Object.entries(state.currencyInventory ?? {})) {
+    if (count > 0) {
+      const material = content.materials.find((m) => m.id === matId);
+      if (material) inventoryItems.push({ id: material.id, name: material.name, type: "material", count });
+    }
+  }
+
+  // Sort alphabetically by name
+  inventoryItems.sort((a, b) => a.name.localeCompare(b.name));
+
+  for (const entry of inventoryItems) {
+    const option = document.createElement("option");
+    option.value = `${entry.type}:${entry.id}`;
+    option.textContent = `${entry.name} (×${entry.count})`;
+    removeSelect.appendChild(option);
+  }
+
+  removeSelect.addEventListener("change", (e) => {
+    const val = e.target.value;
+    if (!val) return;
+    const [type, id] = val.split(":");
+    
+    if (type === "loot") {
+      delete state.lootInventory[id];
+      state.newLootIds = state.newLootIds.filter((itemKey) => itemKey !== id);
+      setStatus(`Removed loot item from inventory.`);
+    } else if (type === "material") {
+      delete state.currencyInventory[id];
+      setStatus(`Removed material from inventory.`);
+    }
+
+    renderCheatLoot();
+    render();
+    saveState();
+  });
+
+  removeContainer.append(removeLabel, removeSelect);
+  elements.cheatLootList.append(removeContainer);
+
+  // --- GRANT ITEM DROPDOWNS (Items, Weapons, Armor, Materials) ---
+  const weaponSlots = new Set(["hand", "two-hand", "offhand"]);
+  
+  const consumableItems = content.loot
+    .filter((item) => item.slot === "")
+    .sort((a, b) => a.name.localeCompare(b.name));
+    
+  const weaponItems = content.loot
+    .filter((item) => weaponSlots.has(item.slot.toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name));
+    
+  const armorItems = content.loot
+    .filter((item) => item.slot !== "" && !weaponSlots.has(item.slot.toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name));
+    
+  const materialItems = [...content.materials]
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const categories = [
+    { label: "Grant Consumable Item:", items: consumableItems, isMaterial: false },
+    { label: "Grant Weapon:", items: weaponItems, isMaterial: false },
+    { label: "Grant Armor:", items: armorItems, isMaterial: false },
+    { label: "Grant Material:", items: materialItems, isMaterial: true },
+  ];
+
+  for (const cat of categories) {
+    const container = document.createElement("div");
+    container.style.cssText = "margin-top: 14px; display: flex; flex-direction: column; gap: 6px;";
+
+    const label = document.createElement("label");
+    label.textContent = cat.label;
+
+    const select = document.createElement("select");
+    const defaultOpt = document.createElement("option");
+    defaultOpt.value = "";
+    defaultOpt.textContent = "Select an item to add...";
+    defaultOpt.disabled = true;
+    defaultOpt.selected = true;
+    select.appendChild(defaultOpt);
+
+    for (const item of cat.items) {
+      const option = document.createElement("option");
+      option.value = item.id;
+      option.textContent = item.name;
+      select.appendChild(option);
+    }
+
+    select.addEventListener("change", (e) => {
+      const id = e.target.value;
+      if (!id) return;
+
       try {
-        addLootToBag(state, content, item.id);
-        setStatus(`${item.name} added to your Bag for free.`);
+        if (cat.isMaterial) {
+          const material = content.materials.find((m) => m.id === id);
+          if (material) {
+            state.currencyInventory[material.id] = (state.currencyInventory[material.id] ?? 0) + 1;
+            setStatus(`${material.name} added to your Bag for free.`);
+          }
+        } else {
+          addLootToBag(state, content, id);
+          const item = content.loot.find((l) => l.id === id);
+          setStatus(`${item ? item.name : "Item"} added to your Bag for free.`);
+        }
         renderCheatLoot();
         render();
         saveState();
       } catch (error) {
-        setStatus(`Could not add ${item.name}: ${error.message}`);
+        setStatus(`Could not add item: ${error.message}`);
       }
     });
-    elements.cheatLootList.append(button);
+
+    container.append(label, select);
+    elements.cheatLootList.append(container);
   }
 }
 

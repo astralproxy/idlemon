@@ -130,6 +130,8 @@ function parseMonster(row) {
     lootChances = Array(lootNames.length).fill(lootChances[0]);
   }
 
+  const notes = (row.Notes ?? "").trim().toLowerCase();
+
   return {
     id: slug(name),
     name,
@@ -146,6 +148,9 @@ function parseMonster(row) {
     materialChance: row["Mat Chance"]?.trim() ? percentage(row["Mat Chance"], "Mat Chance") : 100,
     lootNames,
     materialNames: references(row.Materials ?? row.Currency ?? "", /[;,|]/),
+    requirements: row.Requirements?.trim() ?? "",
+    notes: row.Notes?.trim() ?? "",
+    isOptional: notes.includes("optional"),
   };
 }
 
