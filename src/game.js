@@ -608,6 +608,7 @@ function pruneCountMap(value, allowedIds, label) {
 
 export function getPlayerStats(state, content) {
   let gearDamage = 0;
+  let gearHealing = 0;
   const bonuses = {
     xp_multiplier: 0,
     defense_flat: 0,
@@ -616,15 +617,29 @@ export function getPlayerStats(state, content) {
 
   for (const lootId of Object.values(state.gear ?? {})) {
     const item = content.loot.find((loot) => loot.id === lootId);
-    const skill = item && content.skills.find((candidate) => candidate.name === item.skill);
-    if (item && ["damage_flat"].includes(skill?.effect)) {
-      gearDamage += item.effectValue;
-    }
-    if (skill?.effect === "defense_flat") {
-      if (item.effectIsPercentage) {
-        bonuses.defense_percent += item.effectValue;
-      } else {
-        bonuses.defense_flat += item.effectValue;
+    if (!item) continue;
+
+    const itemSkills = item.skills?.length ? item.skills : (item.skill ? [item.skill] : []);
+    const itemEffects = item.skillEffects?.length ? item.skillEffects : [{ effectValue: item.effectValue, effectIsPercentage: item.effectIsPercentage }];
+
+    for (let i = 0; i < itemSkills.length; i++) {
+      const skName = itemSkills[i];
+      const eff = itemEffects[i] ?? itemEffects[0];
+      const skill = content.skills.find((candidate) => candidate.name.toLowerCase() === skName.toLowerCase());
+
+      if (skill?.effect === "damage_flat") {
+        gearDamage += eff.effectValue;
+      }
+      if (skill?.effect === "defense_flat") {
+        if (eff.effectIsPercentage) {
+          bonuses.defense_percent += eff.effectValue;
+        } else {
+          bonuses.defense_flat += eff.effectValue;
+        }
+      }
+      if (skill?.effect === "heal") {
+        const maxHp = getPlayerMaxHp(state.level);
+        gearHealing += eff.effectIsPercentage ? (maxHp * eff.effectValue / 100) : eff.effectValue;
       }
     }
   }
@@ -634,6 +649,7 @@ export function getPlayerStats(state, content) {
     defense: state.godMode ? 999 : bonuses.defense_flat,
     defensePercent: Math.min(100, bonuses.defense_percent),
     xpMultiplier: Math.max(0, 1 + bonuses.xp_multiplier),
+    gearHealing,
   };
 }
 
@@ -1100,6 +1116,12 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
     
     const stats = getPlayerStats(state, content);
     state.monsterHp -= stats.damage;
+
+    // Apply passive healing from equipped gear
+    if (stats.gearHealing > 0 && state.hp > 0 && !state.gameOver) {
+      const maxHp = getPlayerMaxHp(state.level);
+      state.hp = Math.min(maxHp, state.hp + stats.gearHealing);
+    }
 
     // Fatal hit
     if (state.monsterHp <= 0) {

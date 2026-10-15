@@ -47,19 +47,31 @@ const SCHEMAS = {
     required: ["Name", "Slot", "Value", "Skill", "Skill Effect", "Rarity"],
     parse: (row) => {
       const name = requiredText(row.Name, "Name");
-      const skill = row.Skill.trim();
+      const skillRaw = row.Skill ? row.Skill.trim() : "";
+      const skills = references(skillRaw);
       const rarity = LOOT_RARITIES.get(row.Rarity.trim().toLowerCase());
       if (!rarity) {
         throw new Error(`"Rarity" must be one of: ${[...LOOT_RARITIES.values()].join(", ")}.`);
       }
+
+      const effectRaw = row["Skill Effect"] ? row["Skill Effect"].trim() : "";
+      const effectParts = effectRaw === "" ? [] : effectRaw.split(/,\s*|[;|]/).map((s) => s.trim()).filter(Boolean);
+
+      const skillEffects = skills.map((sk, idx) => parseSingleSkillEffect(effectParts[idx] ?? "", sk));
+      const primarySkill = skills[0] ?? "";
+      const primaryEffect = skillEffects[0] ?? { effectValue: 0, effectIsPercentage: false };
+
       return {
         id: slug(name),
         name,
-        description: skill ? `Associated skill: ${skill}` : "Collectible loot item",
-        skill,
+        description: skills.length > 0 ? `Associated skills: ${skills.join(", ")}` : "Collectible loot item",
+        skill: primarySkill,
+        skills,
+        skillEffects,
         slot: row.Slot.trim(),
         value: number(row.Value, "Value", 0),
-        ...parseSkillEffect(row["Skill Effect"], skill),
+        effectValue: primaryEffect.effectValue,
+        effectIsPercentage: primaryEffect.effectIsPercentage,
         rarity,
         notes: row.Notes?.trim() ?? "",
       };
@@ -80,6 +92,24 @@ const SCHEMAS = {
     },
   },
 };
+
+function parseSingleSkillEffect(value, skill) {
+  const effect = (value ?? "").trim();
+  const sk = (skill ?? "").trim().toLowerCase();
+  if (effect === "") {
+    return { effectValue: 0, effectIsPercentage: false };
+  }
+  if (!effect.endsWith("%")) {
+    return { effectValue: number(effect, "Skill Effect", 0), effectIsPercentage: false };
+  }
+  if (!["defend", "heal"].includes(sk)) {
+    throw new Error(`"Skill Effect" percentages are only supported for Defend and Heal.`);
+  }
+  return {
+    effectValue: percentage(effect.slice(0, -1).trim(), "Skill Effect"),
+    effectIsPercentage: true,
+  };
+}
 
 function parseSkillEffect(value, skill) {
   const effect = value.trim();
@@ -254,6 +284,24 @@ export function validateContent(content) {
       monster.materialNames = monster.materialNames.filter((name) => materialNames.has(name));
     }
   }
+
+  for (const item of content.loot) {
+    if (item.skills && item.skills.length > 0) {
+      const validatedSkills = [];
+      for (const skName of item.skills) {
+        const skill = skillsByName.get(skName.toLowerCase());
+        if (!skill) {
+          warnings.push(`Loot "${item.name}" refers to missing skill "${skName}"; it will be ignored.`);
+        } else {
+          validatedSkills.push(skill.name);
+        }
+      }
+      item.skills = validatedSkills;
+      item.skill = validatedSkills[0] ?? "";
+      item.description = validatedSkills.length > 0 ? `Associated skills: ${validatedSkills.join(", ")}` : "Collectible loot item";
+    }
+  }
+  
   content.warnings = warnings;
   return content;
 }

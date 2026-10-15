@@ -286,14 +286,18 @@ function createTextElement(tag, className, text) {
 }
 
 function lootEffectText(item) {
-  if (!item.skill) {
+  const skills = item.skills?.length ? item.skills : (item.skill ? [item.skill] : []);
+  if (skills.length === 0) {
     return "No associated skill";
   }
-  const skill = content.skills.find((candidate) => candidate.name === item.skill);
-  const effectValue = item.effectIsPercentage
-    ? `${numberFormat.format(item.effectValue)}%`
-    : numberFormat.format(item.effectValue);
-  return skill ? `${item.skill} (${effectValue})` : item.skill;
+
+  return skills.map((skName, idx) => {
+    const eff = item.skillEffects?.[idx] ?? item.skillEffects?.[0] ?? { effectValue: item.effectValue, effectIsPercentage: item.effectIsPercentage };
+    const effectValueStr = eff.effectIsPercentage
+      ? `${numberFormat.format(eff.effectValue)}%`
+      : numberFormat.format(eff.effectValue);
+    return `${skName} (${effectValueStr})`;
+  }).join(", ");
 }
 
 function monsterDisplayName(monster) {
@@ -549,7 +553,7 @@ function render() {
   const hpPercent = (playerHp / playerHpMax) * 100;
   elements.compactPlayerHp.classList.toggle("is-low-hp", hpPercent < 20);
   //elements.compactPlayerArmor.textContent = numberFormat.format(stats.defense);
-  elements.compactPlayerArmor.textContent = `${numberFormat.format(stats.defense)} + ${stats.defensePercent}%`;
+  elements.compactPlayerArmor.textContent = `${stats.defensePercent}% + ${numberFormat.format(stats.defense)}`;
   elements.compactPlayerDamage.textContent = numberFormat.format(stats.damage);
   elements.playerStatsDetails.hidden = playerStatsCollapsed;
   elements.playerStatsCompact.hidden = !playerStatsCollapsed;
