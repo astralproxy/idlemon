@@ -365,13 +365,13 @@ export function parseSavedState(serialized, content) {
     monsterHp = 0;
     awaitingMonsterSelection = true;
     pendingTargetMonsterId = null;
-  } else if (target.type.toLowerCase() === "boss" && shopUnlocked && monsterHp === 0) {
+  } else if ((target.type.toLowerCase() === "boss" || target.type.toLowerCase() === "miniboss") && (target.type.toLowerCase() !== "boss" || shopUnlocked) && monsterHp === 0) {
     if (!awaitingMonsterSelection || pendingTargetMonsterId !== null) {
       recoveryWarnings.push("Repaired saved Boss defeat state.");
     }
     awaitingMonsterSelection = true;
     pendingTargetMonsterId = null;
-  } else if (awaitingMonsterSelection && target.type.toLowerCase() === "boss" && shopUnlocked) {
+  } else if (awaitingMonsterSelection && (target.type.toLowerCase() === "boss" || target.type.toLowerCase() === "miniboss") && (target.type.toLowerCase() !== "boss" || shopUnlocked)) {
     if (monsterHp !== 0 || pendingTargetMonsterId !== null) {
       recoveryWarnings.push("Repaired saved Boss defeat state.");
     }
@@ -702,10 +702,14 @@ export function useLoot(state, content, lootId, random = Math.random) {
       state.monsterHp = 0; // Lock at 0 so it renders empty
       grantKillRewards(state, content, target, random);
       
-      if (target.type.toLowerCase() === "boss") {
-        state.shopUnlocked = true;
-        state.shopVisited = false;
-        state.bossShopHintDismissed = false;
+      if (target.type.toLowerCase() === "boss" || target.type.toLowerCase() === "miniboss") {
+        if (target.type.toLowerCase() === "boss") {
+          state.shopUnlocked = true;
+          state.shopVisited = false;
+          state.bossShopHintDismissed = false;
+        }
+
+        // same for boss or miniboss
         state.awaitingMonsterSelection = true;
         state.pendingTargetMonsterId = null;
         state.prepareViewed = false;
@@ -846,6 +850,11 @@ export function selectMonster(state, content, monsterId) {
     state.pendingTargetMonsterId = null;
     state.activeTab = "fight";
     state.attackRemainder = 0;
+
+    // Lock the shop again when leaving the victory/awaiting selection screen
+    state.shopUnlocked = false;
+    state.shopVisited = false;
+  
     return;
   }
   if (monster.id === state.targetMonsterId) {
@@ -1031,10 +1040,14 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
       state.monsterHp = 0; // Lock health at 0 so it renders empty for the death tick
       grantKillRewards(state, content, target, random);
       
-      if (target.type.toLowerCase() === "boss") {
-        state.shopUnlocked = true;
-        state.shopVisited = false;
-        state.bossShopHintDismissed = false;
+      if (target.type.toLowerCase() === "boss" || target.type.toLowerCase() === "miniboss") {
+        if (target.type.toLowerCase() === "boss") {
+          state.shopUnlocked = true;
+          state.shopVisited = false;
+          state.bossShopHintDismissed = false;
+        }
+
+        // same for boss or miniboss
         state.awaitingMonsterSelection = true;
         state.pendingTargetMonsterId = null;
         state.prepareViewed = false;

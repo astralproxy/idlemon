@@ -72,7 +72,6 @@ const elements = {
   copyStatus: document.querySelector("#copy-status"),
   errorPanel: document.querySelector("#error-panel"),
   errorMessage: document.querySelector("#error-message"),
-  resetErrorGame: document.querySelector("#reset-error-game"),
   
   fightTab: document.querySelector("#fight-tab"),
   prepareTab: document.querySelector("#prepare-tab"),
@@ -115,6 +114,7 @@ const elements = {
   monsterSection: document.querySelector("#monster-section"),
   activeMonsterCard: document.querySelector("#active-monster-card"),
   bossKilledCard: document.querySelector("#boss-killed-card"),
+  bossKilledHeading: document.querySelector(".boss-killed-heading h3"),
   bossShopHint: document.querySelector(".boss-shop-hint"),
   bossKilledName: document.querySelector("#boss-killed-name"),
   bossKilledReward: document.querySelector("#boss-killed-reward"),
@@ -423,7 +423,7 @@ function populateMonsterSelect() {
       item.classList.add("is-disabled");
     } else {
       const isPendingTarget = monster.id === state.pendingTargetMonsterId;
-      const isBoss = monster.type.toLowerCase() === "boss";
+      const isBoss = monster.type.toLowerCase() === "boss" || monster.type.toLowerCase() === "miniboss";
       if (isBoss) {
         item.classList.add("boss-item");
       }
@@ -573,9 +573,9 @@ function render() {
   if (target) {
     // Normal enemies show all loot as rewards because we don't take time to see what actually dropped
     // Boss kills pause the game, so we only want to see what actually dropped
-    const isBoss = target.type.toLowerCase() === "boss";
+    const isBossType = ["boss", "miniboss"].includes(target.type.toLowerCase());
     const lootChance = target.lootChance ?? 100;
-    const lootRewards = isBoss
+    const lootRewards = isBossType
       ? (state.lastDroppedLootNames ?? [])
       : (target.lootNames ?? []).map((name) => 
           lootChance < 100 ? `${name} (${lootChance}%)` : name
@@ -623,6 +623,9 @@ function render() {
     
     const itemRewards = [...lootRewards, ...materialRewards];
 
+    const isBoss = target.type.toLowerCase() === "boss";
+    elements.bossKilledHeading.textContent = isBoss ? "VICTORY ACHIEVED" : "You Defeated";
+    elements.bossShopHint.hidden = !isBoss; // Hide for minibosses
     elements.monsterLevel.textContent = `Level ${target.level}`;
     elements.bossKilledName.textContent = target.name;
     elements.bossKilledReward.replaceChildren(
@@ -1721,7 +1724,6 @@ function resetAndReload() {
 
 elements.resetGame.addEventListener("click", restartGame);
 elements.startOver.addEventListener("click", restartGame);
-elements.resetErrorGame.addEventListener("click", resetAndReload);
 
 async function startGame() {
   try {
