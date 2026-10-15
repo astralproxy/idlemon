@@ -17,17 +17,40 @@ export function resetSavedGame(storage = globalThis.localStorage) {
   storage.removeItem(SAVE_KEY);
 }
 
-export function createRestoreKey(state, now = Date.now()) {
-  // Map state to a tight array: [level, xp, hp, currencyBalance, gearMap, bagMap, killsMap]
+export function createRestoreKey(state, content, now = Date.now()) {
+  const gearIndices = {};
+  for (const [slot, lootId] of Object.entries(state.gear ?? {})) {
+    const idx = content.loot.findIndex((l) => l.id === lootId);
+    if (idx !== -1) gearIndices[slot] = idx;
+  }
+
+  const lootIndices = {};
+  for (const [lootId, count] of Object.entries(state.lootInventory ?? {})) {
+    const idx = content.loot.findIndex((l) => l.id === lootId);
+    if (idx !== -1) lootIndices[idx] = count;
+  }
+
+  const currencyIndices = {};
+  for (const [matId, count] of Object.entries(state.currencyInventory ?? {})) {
+    const idx = content.materials.findIndex((m) => m.id === matId);
+    if (idx !== -1) currencyIndices[idx] = count;
+  }
+
+  const killIndices = {};
+  for (const [monsterId, count] of Object.entries(state.kills ?? {})) {
+    const idx = content.monsters.findIndex((m) => m.id === monsterId);
+    if (idx !== -1) killIndices[idx] = count;
+  }
+
   const compactState = [
     state.level,
     Math.round(state.xp),
     Math.round(state.hp),
     state.currencyBalance ?? 0,
-    state.gear ?? {},
-    state.lootInventory ?? {},
-    state.currencyInventory ?? {},
-    state.kills ?? {},
+    gearIndices,
+    lootIndices,
+    currencyIndices,
+    killIndices,
     now
   ];
 
@@ -55,9 +78,32 @@ export function restoreStateFromKey(key, content, now = Date.now()) {
 
     // If it's an array, unpack it into the standard state format
     if (Array.isArray(parsed)) {
-      const [level, xp, hp, currencyBalance, gear, lootInventory, currencyInventory, kills] = parsed;
+      const [level, xp, hp, currencyBalance, gearIndices, lootIndices, currencyIndices, killIndices] = parsed;
       const baseState = createInitialState(content, now);
-      
+
+      const gear = {};
+      for (const [slot, idx] of Object.entries(gearIndices ?? {})) {
+        if (content.loot[idx]) gear[slot] = content.loot[idx].id;
+      }
+
+      const lootInventory = {};
+      for (const [idxStr, count] of Object.entries(lootIndices ?? {})) {
+        const item = content.loot[Number(idxStr)];
+        if (item) lootInventory[item.id] = count;
+      }
+
+      const currencyInventory = {};
+      for (const [idxStr, count] of Object.entries(currencyIndices ?? {})) {
+        const mat = content.materials[Number(idxStr)];
+        if (mat) currencyInventory[mat.id] = count;
+      }
+
+      const kills = {};
+      for (const [idxStr, count] of Object.entries(killIndices ?? {})) {
+        const monster = content.monsters[Number(idxStr)];
+        if (monster) kills[monster.id] = count;
+      }
+
       baseState.level = level;
       baseState.xp = xp;
       baseState.hp = hp;
@@ -66,6 +112,10 @@ export function restoreStateFromKey(key, content, now = Date.now()) {
       baseState.lootInventory = lootInventory;
       baseState.currencyInventory = currencyInventory;
       baseState.kills = kills;
+      baseState.targetMonsterId = null;
+      baseState.monsterHp = 0;
+      baseState.awaitingMonsterSelection = true;
+      baseState.pendingTargetMonsterId = null;
       baseState.updatedAt = now;
 
       return parseSavedState(JSON.stringify(baseState), content);
@@ -358,7 +408,7 @@ export function parseSavedState(serialized, content) {
     throw new Error("The saved game mode is invalid.");
   }
   const noSelectedMonster = targetMonsterId === null;
-  const isSpecialEnemyType = ["boss", "miniboss", "phantom"].includes(target.type.toLowerCase());
+  const isSpecialEnemyType = target ? ["boss", "miniboss", "phantom"].includes(target.type.toLowerCase()) : false;
   if (!target) {
     if (monsterHp !== 0 || !awaitingMonsterSelection || pendingTargetMonsterId !== null) {
       recoveryWarnings.push("Repaired saved monster selection.");
