@@ -31,7 +31,7 @@ The data behind it lives at: https://docs.google.com/spreadsheets/d/e/2PACX-1vTC
 - When `DEBUG_ENABLED` is true, the Monster section shows the latest loot roll, Loot Chance, and whether loot dropped.
 - XP to reach the next level is `round(0.02x³ + 3.06x² − 13.68x + 81.96)`, where `x` is the level being reached. For example, reaching level 2 requires 67 XP and reaching level 3 requires 69 XP. Monsters unlock based on player level.
 - Progress is saved in this browser's local storage; no account or server is used.
-- Use the Profile page's restore key to export a progress snapshot and restore it in another browser; anyone with the key can access that snapshot.
+- Use the Profile page's restore key to export a progress snapshot and restore it in another browser; anyone with the key can access that snapshot. Simply paste it after the main URL and refresh.
 - Use Settings to swap the displayed order of Equipment and Bag; the preference is saved in this browser.
 - Settings also provides a 1×, 2×, or 5× Game Speed slider that multiplies combat time between attacks; its selection is saved in this browser.
 - Settings can hide the game status text; this preference is saved in this browser and is enabled by default. Player Stats is collapsed by default.

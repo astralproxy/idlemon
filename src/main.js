@@ -570,7 +570,7 @@ function render() {
   if (!elements.profilePage.hidden) {
     renderStatusLog();
     if (document.activeElement !== elements.restoreKey) {
-      elements.restoreKey.value = createRestoreKey(state);
+      elements.restoreKey.value = createRestoreKey(state, content);
     }
   }
 
@@ -1601,7 +1601,7 @@ function showPage(page) {
   lastTickAt = Date.now();
   closeMenu();
   if (page === "profile") {
-    elements.restoreKey.value = createRestoreKey(state);
+    elements.restoreKey.value = createRestoreKey(state, content);
     elements.copyStatus.textContent = "";
     elements.profilePage.querySelector("h2").focus();
   } else if (page === "help") {
@@ -1841,7 +1841,7 @@ document.addEventListener("keydown", (event) => {
 });
 
 elements.copyRestoreKey.addEventListener("click", async () => {
-  const key = createRestoreKey(state);
+  const key = createRestoreKey(state, content);
   elements.restoreKey.value = key;
   try {
     await navigator.clipboard.writeText(key);
