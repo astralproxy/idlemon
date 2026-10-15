@@ -602,11 +602,23 @@ function render() {
       })
       .map((name) => {
         const item = content.materials.find((m) => m.name === name);
-        if ((item?.notes ?? "").trim().toLowerCase() === "boss") {
-          return `${name}`;
+        const notes = (item?.notes ?? "").toLowerCase();
+        
+        let rewardString = "";
+        if (notes.includes("boss")) {
+          rewardString = name;
+        } else if (notes.includes("upgrade")) {
+          rewardString = `${name}`;
         } else {
-          return `${numberFormat.format(target.materialCount ?? 1)} ${name}`;
+          rewardString = `${numberFormat.format(target.materialCount ?? 1)} ${name}`;
         }
+
+        // Append material chance if it's less than 100% and not a boss item
+        if (!notes.includes("boss") && target.materialChance < 100) {
+          rewardString += ` (${target.materialChance}%)`;
+        }
+
+        return rewardString;
       });
     
     const itemRewards = [...lootRewards, ...materialRewards];
