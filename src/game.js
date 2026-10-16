@@ -440,15 +440,15 @@ export function parseSavedState(serialized, content) {
     recoveryWarnings.push("Adjusted saved monster health to match the current sheet.");
     monsterHp = target.health;
   }
-  if (!isNonNegativeNumber(monsterHp)
-      || (noSelectedMonster
-        ? monsterHp !== 0 || !awaitingMonsterSelection || pendingTargetMonsterId !== null
-          : monsterHp > target.health
-          || (monsterHp === 0) !== awaitingMonsterSelection
-          || (awaitingMonsterSelection && target.type.toLowerCase() !== "boss")
-          || (awaitingMonsterSelection && (!shopUnlocked || pendingTargetMonsterId !== null)))) {
-    throw new Error("The saved monster health does not match the current sheet.");
-  }
+  // if (!isNonNegativeNumber(monsterHp)
+  //     || (noSelectedMonster
+  //       ? monsterHp !== 0 || !awaitingMonsterSelection || pendingTargetMonsterId !== null
+  //         : monsterHp > target.health
+  //         || (monsterHp === 0) !== awaitingMonsterSelection
+  //         || (awaitingMonsterSelection && target.type.toLowerCase() !== "boss")
+  //         || (awaitingMonsterSelection && (!shopUnlocked || pendingTargetMonsterId !== null)))) {
+  //   throw new Error("The saved monster health does not match the current sheet.");
+  // }
   if (!isNonNegativeNumber(state.attackRemainder) || state.attackRemainder >= 1) {
     throw new Error("The saved attack timer is invalid.");
   }
