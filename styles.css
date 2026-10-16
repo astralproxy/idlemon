@@ -251,7 +251,7 @@ h3 {
 #bag-panel > .section-heading h2,
 #gear-panel > .section-heading h2 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.2rem;
   line-height: 1.2;
 }
 
@@ -1603,6 +1603,22 @@ footer p {
 .button.player-stats-toggle,
 .button.player-stats-toggle:hover:not(:disabled) {
   background: transparent;
+}
+
+/* Hide spacer line by default (narrow/mobile screens) */
+.gear-spacer-hr {
+  display: none;
+}
+
+/* Show spacer line on wide screens to align with Bag tabs */
+@media (min-width: 741px) {
+  .gear-spacer-hr {
+    display: block;
+    height: 38px; /* Height of the bag tabs */
+    margin: -4px 0 12px;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+  }
 }
 
 @media (max-width: 740px) {

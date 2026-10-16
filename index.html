@@ -122,7 +122,6 @@
             <span id="prepare-monster-health" class="monster-health-label"></span>
           </div>
         </section>
-        <hr>
         <section class="panel player-stats-panel" aria-labelledby="player-stats-title">
           <div class="player-stats-heading">
             <h2 id="player-stats-title">Player Stats</h2>
@@ -170,6 +169,7 @@
               <button id="gear-toggle" class="button secondary player-stats-toggle section-collapse-toggle" type="button" aria-expanded="true" aria-controls="gear-content" aria-label="Collapse Equipment">−</button>
             </div>
             <div id="gear-content">
+              <hr class="gear-spacer-hr">
               <div id="gear-list" class="item-list"></div>
             </div>
           </section>
@@ -300,6 +300,22 @@
             <span>Threshold (HP):</span>
             <input type="number" id="settings-auto-heal-threshold" min="1" style="width: 80px;" />
           </label>
+        </div>
+        <hr>
+        <div class="setting-option">
+          <label for="settings-weapon-sort">Weapon Sort Type:</label>
+          <select id="settings-weapon-sort">
+            <option value="strength">Strength</option>
+            <option value="type">Type (R, L, 2H)</option>
+            <!--<option value="rarity">Rarity</option>-->
+          </select>
+        </div>
+        <div class="setting-option">
+          <label for="settings-armor-sort">Armor Sort Type:</label>
+          <select id="settings-armor-sort">
+            <option value="strength">Strength</option>
+            <option value="type">Type (Head, etc.)</option>
+          </select>
         </div>
         <hr>
         <div class="game-speed-setting">
