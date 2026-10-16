@@ -301,7 +301,13 @@ function lootEffectText(item) {
 }
 
 function monsterDisplayName(monster) {
-  return monster.type.toLowerCase() === "boss" ? `[BOSS] ${monster.name}` : monster.name;
+  if (monster.type.toLowerCase() === "boss") {
+    return `[BOSS] ${monster.name}`;
+  } else if (monster.type.toLowerCase() === "phantom") {
+    return `[Phantom] ${monster.name}`;
+  } else {
+    return monster.name;
+  }
 }
 
 function renderList(container, rows, emptyText, renderRow) {
@@ -606,7 +612,9 @@ function render() {
     // Special enemy kills (e.g. boss) pause the game, so we only want to see what actually dropped
     const isSpecialEnemyType = ["boss", "miniboss", "phantom"].includes(target.type.toLowerCase());
     const lootChance = target.lootChance ?? 100;
-    const lootRewards = isSpecialEnemyType
+
+    // Determine loot rewards: actual dropped items if defeated, potential items if active
+    const lootRewards = (isSpecialEnemyType && state.awaitingMonsterSelection)
       ? (state.lastDroppedLootNames ?? [])
       : (target.lootNames ?? []).map((name) => 
           lootChance < 100 ? `${name} (${lootChance}%)` : name
@@ -628,8 +636,10 @@ function render() {
       .filter((name) => {
         const item = content.materials.find((m) => m.name === name);
         const isBoss = (item?.notes ?? "").trim().toLowerCase() === "boss";
+        
         // Hide non-chosen boss materials when multiple exist
-        return !isBoss || name === activeBossName;
+        // Only filter down to the active drop when viewing the victory/defeated screen, not while fighting
+        return !(state.awaitingMonsterSelection && isSpecialEnemyType && isBoss) || name === activeBossName;
       })
       .map((name) => {
         const item = content.materials.find((m) => m.name === name);
