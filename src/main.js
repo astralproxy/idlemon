@@ -1738,7 +1738,7 @@ for (const [toggle, isCollapsed, setCollapsed] of [
   [elements.bagToggle, () => bagCollapsed, (value) => { 
     bagCollapsed = value;
     if (bagCollapsed) {
-      selectBagTab("items");
+      state.activeBagTab = "items";
     }
   }],
 ]) {
