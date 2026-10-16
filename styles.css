@@ -1121,6 +1121,17 @@ button:focus-visible {
   overflow: hidden;
 }
 
+#bag-items-list,
+#bag-weapons-list,
+#bag-armor-list,
+#bag-materials-list {
+  max-height: 530px;
+  /*max-height: calc(100vh - 240px);*/
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+}
+
 .cheat-loot-item {
   width: 100%;
   flex-direction: column;
