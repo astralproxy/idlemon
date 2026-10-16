@@ -1531,7 +1531,7 @@ function closeMenu() {
 }
 
 function selectBagTab(tab) {
-  if (bagCollapsed) {
+  if (bagCollapsed && tab !== "items") {
     bagCollapsed = false;
   }
 
