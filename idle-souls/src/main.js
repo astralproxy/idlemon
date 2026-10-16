@@ -184,7 +184,7 @@ const elements = {
 };
 
 const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
-const GEAR_SLOTS = ["Hand", "Offhand", "Ring", "Head", "Chest", "Arms", "Legs"];
+const GEAR_SLOTS = ["R-Hand", "L-Hand", "Ring", "Head", "Chest", "Arms", "Legs"];
 const QUICK_ITEM_IGNORED_SKILLS = new Set(["revive"]);
 const INVENTORY_ORDER_KEY = "idlemon-inventory-order-swapped";
 const HIDE_STATUS_TEXT_KEY = "idlemon-hide-status-text";
@@ -734,7 +734,7 @@ function render() {
   renderList(elements.gearList, GEAR_SLOTS, "", (slot) => {
     const item = content.loot.find((loot) => loot.id === state.gear[slot]);
     const row = document.createElement("article");
-    const offhandDisabled = slot === "Offhand" && isTwoHandEquipped(state, content);
+    const offhandDisabled = slot === "L-Hand" && isTwoHandEquipped(state, content);
     row.className = `list-item gear-item${offhandDisabled ? " is-disabled" : ""}`;
     if (offhandDisabled) {
       row.setAttribute("aria-disabled", "true");
@@ -865,9 +865,9 @@ function render() {
     button.disabled = isShop
       ? item.value === 0
       : (item.slot === "" && !canUseLoot(state, content, item.id))
-        || (item.slot === "Offhand" && isTwoHandEquipped(state, content));
-    if (item.slot === "Offhand" && isTwoHandEquipped(state, content)) {
-      button.title = "Unequip the Two-Hand item before equipping Offhand gear.";
+        || (item.slot === "L-Hand" && isTwoHandEquipped(state, content));
+    if (item.slot === "L-Hand" && isTwoHandEquipped(state, content)) {
+      button.title = "Unequip the Two-Hand item before equipping L-Hand gear.";
     }
     
     const sellLootCount = async (count) => {
@@ -970,7 +970,7 @@ function render() {
   );
   
   // Weapons
-  const weaponSlots = new Set(["hand", "two-hand", "offhand"]);
+  const weaponSlots = new Set(["r-hand", "two-hand", "l-hand"]);
   renderList(
     elements.bagWeaponsList,
     bagLoot.filter((item) => weaponSlots.has(item.slot.toLowerCase())).sort(sortByRarityDesc),
@@ -1326,7 +1326,7 @@ function renderCheatLoot() {
   elements.cheatLootList.append(removeContainer);
 
   // --- GRANT ITEM DROPDOWNS (Items, Weapons, Armor, Materials) ---
-  const weaponSlots = new Set(["hand", "two-hand", "offhand"]);
+  const weaponSlots = new Set(["r-hand", "two-hand", "l-hand"]);
   
   const consumableItems = content.loot
     .filter((item) => item.slot === "")
@@ -1431,7 +1431,7 @@ function selectBagTab(tab) {
 
   // Clear new loot tags when switching to another tab
   if (previousTab !== tab) {
-    const weaponSlots = new Set(["hand", "two-hand", "offhand"]);
+    const weaponSlots = new Set(["r-hand", "two-hand", "l-hand"]);
 
     if (previousTab === "weapons" && state && content) {
       state.newLootIds = (state.newLootIds ?? []).filter((id) => {
@@ -1476,7 +1476,7 @@ function updateBagTabIndicators() {
   if (!content || !state) return;
   const currentTab = state.activeBagTab || "items";
 
-  const weaponSlots = new Set(["hand", "two-hand", "offhand"]);
+  const weaponSlots = new Set(["r-hand", "two-hand", "l-hand"]);
   const hasNewWeapon = currentTab !== "weapons" &&(state.newLootIds ?? []).some((id) => {
     const item = content.loot.find((l) => l.id === id);
     return item && weaponSlots.has(item.slot.toLowerCase());

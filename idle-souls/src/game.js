@@ -476,8 +476,8 @@ export function parseSavedState(serialized, content) {
     if (!item) {
       continue;
     }
-    const slot = savedSlot === "Two-Hand" ? "Hand" : savedSlot;
-    const itemGearSlot = item.slot === "Two-Hand" ? "Hand" : item.slot;
+    const slot = savedSlot === "Two-Hand" ? "R-Hand" : savedSlot;
+    const itemGearSlot = item.slot === "Two-Hand" ? "R-Hand" : item.slot;
     if (itemGearSlot !== slot) {
       lootInventory[item.id] = (lootInventory[item.id] ?? 0) + 1;
       continue;
@@ -494,11 +494,11 @@ export function parseSavedState(serialized, content) {
       gear[slot] = item.id;
     }
   }
-  const handItem = content.loot.find((loot) => loot.id === gear.Hand);
-  if (handItem?.slot === "Two-Hand" && gear.Offhand) {
-    lootInventory[gear.Offhand] = (lootInventory[gear.Offhand] ?? 0) + 1;
-    delete gear.Offhand;
-    recoveryWarnings.push("Returned saved Offhand equipment to the Bag because a Two-Hand item occupies the Hand slot.");
+  const handItem = content.loot.find((loot) => loot.id === gear["R-Hand"]);
+  if (handItem?.slot === "Two-Hand" && gear["L-Hand"]) {
+    lootInventory[gear["L-Hand"]] = (lootInventory[gear["L-Hand"]] ?? 0) + 1;
+    delete gear["L-Hand"];
+    recoveryWarnings.push("Returned saved L-Hand equipment to the Bag because a Two-Hand item occupies the R-Hand slot.");
   }
   const currencyInventory = pruneCountMap(state.currencyInventory, new Set(content.materials.map((item) => item.id)), "materials");
   const currencyBalance = state.currencyBalance ?? content.materials.reduce((total, material) => (
@@ -664,7 +664,7 @@ function addLootToInventory(state, lootId, count = 1) {
 }
 
 export function isTwoHandEquipped(state, content) {
-  const handItem = content.loot.find((loot) => loot.id === state.gear?.Hand);
+  const handItem = content.loot.find((loot) => loot.id === state.gear?.["R-Hand"]);
   return handItem?.slot === "Two-Hand";
 }
 
@@ -677,11 +677,11 @@ export function equipLoot(state, content, lootId) {
   if (owned < 1) {
     throw new Error("That item is not in your bag.");
   }
-  if (item.slot === "Offhand" && isTwoHandEquipped(state, content)) {
-    throw new Error("Offhand equipment cannot be used while a Two-Hand item is equipped.");
+  if (item.slot === "L-Hand" && isTwoHandEquipped(state, content)) {
+    throw new Error("L-Hand equipment cannot be used while a Two-Hand item is equipped.");
   }
 
-  const slot = item.slot === "Two-Hand" ? "Hand" : item.slot;
+  const slot = item.slot === "Two-Hand" ? "R-Hand" : item.slot;
   const previousId = state.gear[slot];
   if (previousId === item.id) {
     return false;
@@ -689,10 +689,10 @@ export function equipLoot(state, content, lootId) {
   if (previousId) {
     state.lootInventory[previousId] = (state.lootInventory[previousId] ?? 0) + 1;
   }
-  if (item.slot === "Two-Hand" && state.gear.Offhand) {
-    const offhandId = state.gear.Offhand;
+  if (item.slot === "Two-Hand" && state.gear["L-Hand"]) {
+    const offhandId = state.gear["L-Hand"];
     state.lootInventory[offhandId] = (state.lootInventory[offhandId] ?? 0) + 1;
-    delete state.gear.Offhand;
+    delete state.gear["L-Hand"];
   }
   state.lootInventory[item.id] = owned - 1;
   if (state.lootInventory[item.id] === 0) {
@@ -709,7 +709,7 @@ export function unequipLoot(state, content, slot) {
   }
   if (!content.loot.some((item) => (
     item.id === lootId
-    && (item.slot === "Two-Hand" ? "Hand" : item.slot) === slot
+    && (item.slot === "Two-Hand" ? "R-Hand" : item.slot) === slot
   ))) {
     throw new Error("The equipped item no longer matches this gear slot.");
   }
