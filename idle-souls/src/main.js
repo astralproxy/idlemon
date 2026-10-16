@@ -570,15 +570,29 @@ function render() {
   elements.playerStatsToggle.setAttribute("aria-expanded", String(!playerStatsCollapsed));
   elements.playerStatsToggle.textContent = playerStatsCollapsed ? "+" : "−";
   elements.playerStatsToggle.setAttribute("aria-label", `${playerStatsCollapsed ? "Expand" : "Collapse"} Player Stats`);
+  
   elements.gearContent.hidden = gearCollapsed;
   elements.gearToggle.setAttribute("aria-expanded", String(!gearCollapsed));
   elements.gearToggle.textContent = gearCollapsed ? "+" : "−";
   elements.gearToggle.setAttribute("aria-label", `${gearCollapsed ? "Expand" : "Collapse"} Equipment`);
-  elements.bagContent.hidden = bagCollapsed;
-  elements.bagShopNote.hidden = state.activeTab !== "shop";
+
+  elements.bagShopNote.hidden = bagCollapsed || state.activeTab !== "shop";
   elements.bagToggle.setAttribute("aria-expanded", String(!bagCollapsed));
   elements.bagToggle.textContent = bagCollapsed ? "+" : "−";
   elements.bagToggle.setAttribute("aria-label", `${bagCollapsed ? "Expand" : "Collapse"} Bag`);
+
+  const bagTabsList = [
+    ["items", elements.bagItemsTab, elements.bagItemsPanel],
+    ["weapons", elements.bagWeaponsTab, elements.bagWeaponsPanel],
+    ["armor", elements.bagArmorTab, elements.bagArmorPanel],
+    ["materials", elements.bagMaterialsTab, elements.bagMaterialsPanel],
+  ];
+  const activeBagTab = state.activeBagTab || "items";
+  for (const [name, button, panel] of bagTabsList) {
+    const selected = name === activeBagTab;
+    panel.hidden = bagCollapsed || !selected;
+  }
+
   elements.status.textContent = statusMessage;
 
   if (!elements.profilePage.hidden) {
@@ -612,17 +626,22 @@ function render() {
   elements.prepareMonster.hidden = !target || state.activeTab !== "prepare" || state.awaitingMonsterSelection;
   elements.killCount.hidden = !target || state.awaitingMonsterSelection;
   if (target) {
+    // Determine loot rewards: actual dropped items if defeated, potential items if active
     // Normal enemies show all loot as rewards because we don't take time to see what actually dropped
     // Special enemy kills (e.g. boss) pause the game, so we only want to see what actually dropped
     const isSpecialEnemyType = ["boss", "miniboss", "phantom"].includes(target.type.toLowerCase());
-    const lootChance = target.lootChance ?? 100;
-
-    // Determine loot rewards: actual dropped items if defeated, potential items if active
+    // Determine loot rewards with individual chances
     const lootRewards = (isSpecialEnemyType && state.awaitingMonsterSelection)
-      ? (state.lastDroppedLootNames ?? [])
-      : (target.lootNames ?? []).map((name) => 
-          lootChance < 100 ? `${name} (${lootChance}%)` : name
-        );
+      ? (state.lastDroppedLootNames ?? []).map(name => ({ name, displayName: name }))
+      : (target.lootNames ?? []).map((name, index) => {
+          const chance = target.lootChances?.[index] ?? target.lootChance ?? 100;
+          return {
+            name,
+            displayName: chance < 100 ? `${name} (${chance}%)` : name
+          };
+        });
+
+    const lootRewardStrings = lootRewards.map(r => r.displayName);
 
     const rawMaterials = target.materialNames ?? target.currencyNames ?? [];
     const bossNames = rawMaterials.filter((name) => {
@@ -668,7 +687,7 @@ function render() {
         return rewardString;
       });
     
-    const itemRewards = [...lootRewards, ...materialRewards];
+    const itemRewards = [...lootRewardStrings, ...materialRewards];
 
     const isBoss = target.type.toLowerCase() === "boss";
     elements.bossKilledHeading.textContent = isBoss ? "VICTORY ACHIEVED" : "You Defeated";
@@ -678,17 +697,17 @@ function render() {
     elements.bossKilledReward.replaceChildren(
       document.createTextNode(`Rewards: ${numberFormat.format(target.xp)} XP`),
     );
-    for (const rewardName of lootRewards) {
-      const item = content.loot.find((lootItem) => lootItem.name === rewardName);
+    for (const reward of lootRewards) {
+      const item = content.loot.find((lootItem) => lootItem.name === reward.name);
       elements.bossKilledReward.append(document.createElement("br"));
       if (item) {
         elements.bossKilledReward.append(createTextElement(
           "span",
           `loot-rarity rarity-${item.rarity.toLowerCase()}`,
-          rewardName,
+          reward.displayName,
         ));
       } else {
-        elements.bossKilledReward.append(document.createTextNode(rewardName));
+        elements.bossKilledReward.append(document.createTextNode(reward.displayName));
       }
     }
     for (const reward of materialRewards) {
@@ -1512,6 +1531,10 @@ function closeMenu() {
 }
 
 function selectBagTab(tab) {
+  if (bagCollapsed) {
+    bagCollapsed = false;
+  }
+
   const previousTab = state.activeBagTab || "items";
 
   // Clear new loot tags when switching to another tab
