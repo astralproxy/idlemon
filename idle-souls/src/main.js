@@ -53,8 +53,10 @@ const elements = {
   settingsAutoHealEnabled: document.querySelector("#settings-auto-heal-enabled"),
   settingsAutoHealThreshold: document.querySelector("#settings-auto-heal-threshold"),
   swapInventoryOrder: document.querySelector("#swap-inventory-order"),
-
+  settingsWeaponSort: document.querySelector("#settings-weapon-sort"),
+  settingsArmorSort: document.querySelector("#settings-armor-sort"),
   hideStatusText: document.querySelector("#hide-status-text"),
+
   statusPanel: document.querySelector(".status-panel"),
   statusLogList: document.querySelector("#status-log-list"),
 
@@ -188,6 +190,8 @@ const GEAR_SLOTS = ["R-Hand", "L-Hand", "Ring", "Head", "Chest", "Arms", "Legs"]
 const QUICK_ITEM_IGNORED_SKILLS = new Set(["revive"]);
 const INVENTORY_ORDER_KEY = "idlemon-inventory-order-swapped";
 const HIDE_STATUS_TEXT_KEY = "idlemon-hide-status-text";
+const WEAPON_SORT_KEY = "idlemon-weapon-sort";
+const ARMOR_SORT_KEY = "idlemon-armor-sort";
 const GAME_SPEED_KEY = "idlemon-game-speed";
 const GAME_SPEEDS = [1, 2, 5];
 let content;
@@ -559,7 +563,7 @@ function render() {
   const hpPercent = (playerHp / playerHpMax) * 100;
   elements.compactPlayerHp.classList.toggle("is-low-hp", hpPercent < 20);
   //elements.compactPlayerArmor.textContent = numberFormat.format(stats.defense);
-  elements.compactPlayerArmor.textContent = `${stats.defensePercent}% + ${numberFormat.format(stats.defense)}`;
+  elements.compactPlayerArmor.textContent = `${numberFormat.format(stats.defense)} + ${stats.defensePercent}%`;
   elements.compactPlayerDamage.textContent = numberFormat.format(stats.damage);
   elements.playerStatsDetails.hidden = playerStatsCollapsed;
   elements.playerStatsCompact.hidden = !playerStatsCollapsed;
@@ -965,10 +969,38 @@ function render() {
   // indicate new items
   updateBagTabIndicators();
 
+  // Sort by rarity
   const sortByRarityDesc = (a, b) => {
     const rankA = RARITY_ORDER.indexOf(a.rarity.toLowerCase());
     const rankB = RARITY_ORDER.indexOf(b.rarity.toLowerCase());
     return rankB - rankA;
+  };
+
+  // Sort by skill effect (aka its strength)
+  const sortByEffectDesc = (a, b) => {
+    const getPrimaryEff = (item) => {
+      if (Array.isArray(item.skillEffects) && item.skillEffects.length > 0) {
+        return item.skillEffects[0];
+      }
+      return {
+        effectValue: item.effectValue ?? 0,
+        effectIsPercentage: item.effectIsPercentage ?? false
+      };
+    };
+
+    const effA = getPrimaryEff(a);
+    const effB = getPrimaryEff(b);
+
+    const isPctA = Boolean(effA.effectIsPercentage);
+    const isPctB = Boolean(effB.effectIsPercentage);
+
+    // Flat (integer) values take precedence over percentage values
+    if (isPctA !== isPctB) {
+      return isPctA ? 1 : -1;
+    }
+
+    // Within the same type, sort by effect value descending
+    return (effB.effectValue ?? 0) - (effA.effectValue ?? 0);
   };
 
   // Items, sorted alphabetically
@@ -979,18 +1011,61 @@ function render() {
     renderBagItem,
   );
   
-  // Weapons
+  // Sync select element values with state
+  elements.settingsWeaponSort.value = state.weaponSort || "strength";
+  elements.settingsArmorSort.value = state.armorSort || "type";
+
+  // Weapons sorting based on setting
+  const weaponSortType = state.weaponSort || "strength";
+  const weaponSlotOrder = ["r-hand", "l-hand", "two-hand"];
+  const sortWeapons = (a, b) => {
+    if (weaponSortType === "type") {
+      const slotA = weaponSlotOrder.indexOf(a.slot.toLowerCase());
+      const slotB = weaponSlotOrder.indexOf(b.slot.toLowerCase());
+      const indexA = slotA === -1 ? 999 : slotA;
+      const indexB = slotB === -1 ? 999 : slotB;
+
+      if (indexA !== indexB) {
+        return indexA - indexB;
+      }
+    }
+    
+    if (weaponSortType === "rarity") {
+      return sortByRarityDesc(a, b);
+    }
+
+    // Default or strength sort
+    return sortByEffectDesc(a, b);
+  };
+
   const weaponSlots = new Set(["r-hand", "two-hand", "l-hand"]);
   renderList(
     elements.bagWeaponsList,
-    bagLoot.filter((item) => weaponSlots.has(item.slot.toLowerCase())).sort(sortByRarityDesc),
+    bagLoot.filter((item) => weaponSlots.has(item.slot.toLowerCase())).sort(sortWeapons),
     "No weapons in your bag.",
     renderBagItem,
   );
-  // Armor
+
+  // Armor sorting based on setting
+  const armorSortType = state.armorSort || "type";
+  const armorSlotOrder = ["ring", "head", "chest", "arms", "legs"];  
+  const sortArmor = (a, b) => {
+    if (armorSortType === "type") {
+      const slotA = armorSlotOrder.indexOf(a.slot.toLowerCase());
+      const slotB = armorSlotOrder.indexOf(b.slot.toLowerCase());
+      const indexA = slotA === -1 ? 999 : slotA;
+      const indexB = slotB === -1 ? 999 : slotB;
+
+      if (indexA !== indexB) {
+        return indexA - indexB;
+      }
+    }
+    return sortByEffectDesc(a, b);
+  };
+
   renderList(
     elements.bagArmorList,
-    bagLoot.filter((item) => item.slot !== "" && !weaponSlots.has(item.slot.toLowerCase())).sort(sortByRarityDesc),
+    bagLoot.filter((item) => item.slot !== "" && !weaponSlots.has(item.slot.toLowerCase())).sort(sortArmor),
     "No armor in your bag.",
     renderBagItem,
   );
@@ -1835,6 +1910,28 @@ elements.settingsAutoHealThreshold.addEventListener("change", () => {
   saveState();
 });
 
+elements.settingsWeaponSort.addEventListener("change", () => {
+  state.weaponSort = elements.settingsWeaponSort.value;
+  try {
+    localStorage.setItem(WEAPON_SORT_KEY, state.weaponSort);
+  } catch (error) {
+    setStatus(`Could not save setting: ${error.message}`);
+  }
+  render();
+  saveState();
+});
+
+elements.settingsArmorSort.addEventListener("change", () => {
+  state.armorSort = elements.settingsArmorSort.value;
+  try {
+    localStorage.setItem(ARMOR_SORT_KEY, state.armorSort);
+  } catch (error) {
+    setStatus(`Could not save setting: ${error.message}`);
+  }
+  render();
+  saveState();
+});
+
 document.querySelectorAll(".return-to-game").forEach((button) => {
   button.addEventListener("click", () => showPage("game"));
 });
@@ -1967,6 +2064,9 @@ async function startGame() {
     }
     elements.settingsAutoHealEnabled.checked = Boolean(state.autoHealEnabled);
     elements.settingsAutoHealThreshold.value = state.autoHealThreshold ?? 100;
+
+    state.weaponSort = localStorage.getItem(WEAPON_SORT_KEY) || "strength";
+    state.armorSort = localStorage.getItem(ARMOR_SORT_KEY) || "type";
 
     elements.gameSpeed.value = String(GAME_SPEEDS.indexOf(gameSpeed));
     elements.gameSpeedValue.value = `${gameSpeed}×`;
