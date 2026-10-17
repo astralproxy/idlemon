@@ -1,6 +1,6 @@
 export const MAX_OFFLINE_SECONDS = 10; // don't let player log off instantly to avoid death
 export const SAVE_KEY = "idlemon-save-v1";
-export const SAVE_VERSION = 12;
+export const SAVE_VERSION = 13;
 export const PLAYER_STARTING_MAX_HP = 400;
 export const PLAYER_MAX_HP_PER_LEVEL = 15;
 export const PLAYER_MAX_HP_CAP = 1900;
@@ -320,6 +320,8 @@ export function createInitialState(content, now = Date.now()) {
     level: 1,
     xp: 0,
     hp: getPlayerMaxHp(1),
+    playtime: 0, // Track total play time in seconds
+    ngPlus: 0,
     autoHealEnabled: false,
     autoHealThreshold: 100,
     gameOver: false,
@@ -356,9 +358,10 @@ export function parseSavedState(serialized, content) {
     throw new Error("The local save is not valid JSON.");
   }
 
-  if (!state || typeof state !== "object" || Array.isArray(state) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, SAVE_VERSION].includes(state.version)) {
+  if (!state || typeof state !== "object" || Array.isArray(state) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, SAVE_VERSION].includes(state.version)) {
     throw new Error("The local save has an unsupported format.");
   }
+  
   if (!Number.isInteger(state.level) || state.level < 1) {
     throw new Error("The saved player level is invalid.");
   }
@@ -386,6 +389,8 @@ export function parseSavedState(serialized, content) {
   }
   const maxHp = getPlayerMaxHp(state.level);
   const hp = state.hp ?? maxHp;
+  const playtime = isNonNegativeNumber(state.playtime) ? state.playtime : 0;
+  const ngPlus = Number.isInteger(state.ngPlus) ? state.ngPlus : 0;
   const gameOver = state.gameOver ?? false;
   if (!Number.isFinite(hp) || hp < 0 || hp > maxHp || typeof gameOver !== "boolean") {
     throw new Error("The saved player health or game-over state is invalid.");
@@ -542,6 +547,8 @@ export function parseSavedState(serialized, content) {
     level: state.level,
     xp: state.xp,
     hp,
+    playtime,
+    ngPlus,
     autoHealEnabled,
     autoHealThreshold,
     gameOver,
@@ -1061,12 +1068,14 @@ function grantKillRewards(state, content, monster, random = Math.random) {
           state.currencyBalance = (state.currencyBalance ?? 0) + (materialCount * soulValue);
         } else {
           const currentCount = state.currencyInventory[item.id] ?? 0;
-          // If it's an upgrade item, limit the drop amount to 1 max per drop event
-          const effectiveCount = isUpgrade ? 1 : materialCount;
-          const countToAdd = isUnique ? Math.min(1, Math.max(0, 1 - currentCount)) : effectiveCount;
-          
-          if (countToAdd > 0) {
-            state.currencyInventory[item.id] = currentCount + countToAdd;
+          if (currentCount < 99) {
+            // If it's an upgrade item, limit the drop amount to 1 max per drop event
+            const effectiveCount = isUpgrade ? 1 : materialCount;
+            const countToAdd = isUnique ? Math.min(1, Math.max(0, 1 - currentCount)) : effectiveCount;
+            
+            if (countToAdd > 0) {
+              state.currencyInventory[item.id] = currentCount + countToAdd;
+            }
           }
         }
       }
