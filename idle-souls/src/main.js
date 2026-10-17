@@ -42,12 +42,20 @@ const elements = {
   confirmDialogYes: document.querySelector("#confirm-dialog-yes"),
   confirmDialogNo: document.querySelector("#confirm-dialog-no"),
 
+  // Game End custom dialog
+  gameEndDialog: document.querySelector("#game-end-dialog"),
+  gameEndDialogTitle: document.querySelector("#game-end-dialog-title"),
+  gameEndDialogMessage: document.querySelector("#game-end-dialog-message"),
+  gameEndDialogYes: document.querySelector("#game-end-dialog-yes"),
+  gameEndDialogNo: document.querySelector("#game-end-dialog-no"),
+
   status: document.querySelector("#game-status"),
   resetGame: document.querySelector("#reset-game"),
   menuToggle: document.querySelector("#menu-toggle"),
   siteMenu: document.querySelector("#site-menu"),
   cheatMenuItem: document.querySelector("#cheat-menu-item"),
   profilePage: document.querySelector("#profile-page"),
+  profilePlaytime: document.querySelector("#profile-playtime"),
   helpPage: document.querySelector("#help-page"),
   settingsPage: document.querySelector("#settings-page"),
   settingsAutoHealEnabled: document.querySelector("#settings-auto-heal-enabled"),
@@ -248,6 +256,43 @@ function showConfirmDialog(title, message, yesText = "Yes", noText = "Cancel", i
   });
 }
 
+function showGameEndDialog() {
+  if (!elements.gameEndDialog) {
+    return Promise.resolve(window.confirm(`${title}\n\n${message}`));
+  }
+
+  elements.gameEndDialogTitle.textContent = "The Fire Fades...";
+  elements.gameEndDialogMessage.textContent = "The Lord of Cinder is defeated. Do you choose to take up his crown, or continue your journey in this now darkened world?";
+  elements.gameEndDialogYes.textContent = "Link the Fire (NG+)";
+  elements.gameEndDialogNo.textContent = "Walk Away (continue)";
+
+  elements.gameEndDialog.showModal();
+
+  return new Promise((resolve) => {
+    elements.gameEndDialog.addEventListener(
+      "close",
+      () => {
+        resolve(elements.gameEndDialog.returnValue === "confirm");
+      },
+      { once: true }
+    );
+  });
+}
+
+// helper function to format seconds
+function formatPlaytime(totalSeconds) {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`;
+  } else if (minutes > 0) {
+    return `${minutes}m ${seconds}s`;
+  } else {
+    return `${seconds}s`;
+  }
+}
+
 // Log status to the main page as well as the Profile history
 function setStatus(message) {
   window.clearTimeout(statusTimeout);
@@ -429,11 +474,13 @@ function populateMonsterSelect() {
   // );
 
   // Find the first required (non-optional) boss that hasn't been defeated yet
-  const undefeatedBossIndex = content.monsters.findIndex(
-    (monster) => monster.type.toLowerCase() === "boss" &&
-      !monster.isOptional &&
-      (state.kills[monster.id] ?? 0) === 0
-  );
+  const undefeatedBossIndex = state._tempUnlockAll
+    ? -1
+    : content.monsters.findIndex(
+        (monster) => monster.type.toLowerCase() === "boss" &&
+          !monster.isOptional &&
+          (state.kills[monster.id] ?? 0) === 0
+      );
 
   for (let index = 0; index < content.monsters.length; index += 1) {
     const monster = content.monsters[index];
@@ -596,7 +643,12 @@ function render() {
   elements.status.textContent = statusMessage;
 
   if (!elements.profilePage.hidden) {
+    if (elements.profilePlaytime) {
+      elements.profilePlaytime.textContent = formatPlaytime(state.playtime ?? 0);
+    }
+
     renderStatusLog();
+    
     if (document.activeElement !== elements.restoreKey) {
       elements.restoreKey.value = createRestoreKey(state, content);
     }
@@ -763,7 +815,8 @@ function render() {
     .reduce((total, boss) => total + (state.kills[boss.id] ?? 0), 0);
 
   elements.gameOverStats.textContent = `Player level: ${numberFormat.format(state.level)}
-    Souls lost: ${numberFormat.format(soulsLost)}
+    Total Playtime: ${formatPlaytime(state.playtime ?? 0)}
+    \nSouls lost: ${numberFormat.format(soulsLost)}
     \nEnemies defeated: ${numberFormat.format(totalKills)}
     Bosses defeated: ${numberFormat.format(totalBossesDefeated)}`;
   renderShop();
@@ -1395,6 +1448,30 @@ function renderCheatLoot() {
   });
   elements.cheatLootList.append(godModeButton);
 
+  // --- UNLOCK ALL ENEMIES (ONE-OFF) BUTTON ---
+  const unlockAllButton = document.createElement("button");
+  unlockAllButton.type = "button";
+  unlockAllButton.className = "button secondary";
+  unlockAllButton.style.marginTop = "8px";
+  unlockAllButton.textContent = "Unlock All Enemies";
+  unlockAllButton.addEventListener("click", () => {
+    // Temporarily override or trigger a re-render with all bosses revealed
+    // By setting a transient runtime flag on state that isn't saved/parsed
+    state._tempUnlockAll = true;
+
+    // Reset all boss kill counts to 0 so they can be selected again
+    for (const monster of content.monsters) {
+      if (monster.type.toLowerCase() === "boss") {
+        state.kills[monster.id] = 0;
+      }
+    }
+    
+    setStatus("All enemies temporarily unlocked for selection.");
+    populateMonsterSelect();
+    render();
+  });
+  elements.cheatLootList.append(unlockAllButton);
+
   // --- REMOVE ITEM CHEAT DROPDOWN ---
   const removeContainer = document.createElement("div");
   removeContainer.className = "cheat-remove-section";
@@ -1833,21 +1910,53 @@ function tick() {
   const now = Date.now();
   const elapsed = Math.max(0, (now - lastTickAt) / 1000);
   lastTickAt = now;
+
   const wasAwaitingMonsterSelection = state.awaitingMonsterSelection;
   const previousTargetId = state.targetMonsterId;
   const previousTargetKills = state.kills[previousTargetId] ?? 0;
 
   const gameIsActive = currentPage === "game" && elements.siteMenu.hidden;
   if (gameIsActive) {
+    if (!state.gameOver) {
+      state.playtime = (state.playtime ?? 0) + elapsed;
+    }
     // if game speed is 2x, we see 2 actions per second
     advanceGame(state, content, elapsed * gameSpeed);
 
     // if new monster activated, we will update the bg image
-    checkAndUpdateBackground();
+    checkAndUpdateBackground();    
   }
   
   // Triggered when a Boss is defeated (entering awaiting selection state)
   if (!wasAwaitingMonsterSelection && state.awaitingMonsterSelection) {
+    const targetMonster = content.monsters.find((m) => m.id === previousTargetId);
+    const bosses = content.monsters.filter((m) => m.type.toLowerCase() === "boss");
+    
+    const lastBoss = bosses[bosses.length - 1];
+    if (lastBoss && targetMonster && targetMonster.id === lastBoss.id) {
+      showGameEndDialog(
+      ).then((linkFire) => {
+        if (linkFire) {
+          state.ngPlus = (state.ngPlus ?? 0) + 1;
+          state.level = 1;
+          state.xp = 0;
+          state.hp = getPlayerMaxHp(1);
+          state.kills = {};
+          state.targetMonsterId = null;
+          state.monsterHp = 0;
+          state.awaitingMonsterSelection = true;
+          state.shopUnlocked = true;
+          state.shopVisited = false;
+          setStatus(`Entering NG+ ${state.ngPlus}`);
+        } else {
+          setStatus("Continuing with current journey...");
+        }
+        render();
+        saveState();
+      });
+      return;
+    }
+
     setStatus(state.targetMonsterId === null
       ? "Fled from combat. Choose a enemy when you're ready to fight again."
       : "Choose a new enemy to continue.");

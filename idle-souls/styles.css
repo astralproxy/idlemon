@@ -234,6 +234,31 @@ h3 {
   margin: 12px 0 0;
 }
 
+.game-end-dialog {
+  max-width: 420px;
+  width: 90vw;
+}
+
+.game-end-actions {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  margin-top: 16px !important;
+  width: 100% !important;
+}
+
+.game-end-btn-wrapper {
+  width: 100% !important;
+  display: block !important;
+}
+
+.game-end-actions .button {
+  width: 100% !important;
+  white-space: normal !important;
+  text-align: center !important;
+  padding: 12px 16px !important;
+}
+
 .panel.player-stats-panel {
   margin-bottom: 12px;
   padding: 8px;

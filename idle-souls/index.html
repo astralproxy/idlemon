@@ -55,6 +55,23 @@
         </form>
       </dialog>
 
+      <dialog id="game-end-dialog" class="sell-confirm-dialog game-end-dialog" aria-labelledby="game-end-dialog-title">
+        <h2 id="game-end-dialog-title">The End</h2>
+        <p id="game-end-dialog-message">So... the fire fades...</p>
+        <form id="game-end-dialog-form" class="sell-confirm-actions game-end-actions" method="dialog">
+          <div class="game-end-btn-wrapper">
+            <button id="game-end-dialog-yes" class="button wide-action-btn" type="submit" value="confirm">
+              Link the Fire (NG+)
+            </button>
+          </div>
+          <div class="game-end-btn-wrapper">
+            <button id="game-end-dialog-no" class="button secondary wide-action-btn" type="submit" value="cancel">
+              Walk Away (Continue)
+            </button>
+          </div>
+        </form>
+      </dialog>
+
       <div id="game" hidden>
         <div class="combat-tabs" role="tablist" aria-label="Game mode">
           <button id="fight-tab" class="combat-tab" type="button" role="tab" aria-selected="true" aria-controls="monster-section" tabindex="0">Fight</button>
@@ -228,11 +245,11 @@
       <section id="profile-page" class="panel content-page" aria-labelledby="profile-title" hidden>
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Your progress</p>
             <h2 id="profile-title" tabindex="-1">Profile</h2>
           </div>
           <button class="button secondary return-to-game" type="button">Back to game</button>
         </div>
+        <p class="muted">Total Playtime: <strong id="profile-playtime">0s</strong></p>
         <p class="muted">A snapshot of your progress is saved constantly.</p>
         <p class="muted restore-instructions">To restore on another machine, add this key after the base game URL and REFRESH. The game will import the snapshot and save it in that browser.</p>
         <label for="restore-key">Progress restoration key:</label>
@@ -342,7 +359,6 @@
           <button class="button secondary return-to-game" type="button">Back to game</button>
         </div>
         <div id="cheat-options-list" class="item-list" style="margin-bottom: 1rem;"></div>
-        <p class="muted">Add items to Bag...</p>
         <div id="cheat-loot-list" class="item-list cheat-loot-list"></div>
       </section>
 
