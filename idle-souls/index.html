@@ -33,8 +33,8 @@
           </button>
           <nav id="site-menu" class="site-menu panel" aria-label="Main menu" hidden>
             <button class="menu-item" type="button" data-page="profile">Profile</button>
-            <button class="menu-item" type="button" data-page="help">Help</button>
             <button class="menu-item" type="button" data-page="settings">Settings</button>
+            <button class="menu-item" type="button" data-page="help">How to Play</button>
             <button id="cheat-menu-item" class="menu-item" type="button" data-page="cheat" hidden>CHEAT</button>
           </nav>
         </div>
@@ -92,7 +92,7 @@
             <div id="active-monster-card">
               <div class="monster-card-heading">
                 <h3 id="monster-name">—</h3>
-                <span id="monster-level" class="badge"></span>
+                <span id="monster-dmg" class="badge"></span>
               </div>
               <div class="meter monster-meter" role="progressbar" aria-label="Monster health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
                 <span id="monster-health-meter"></span>
@@ -256,22 +256,23 @@
       <section id="help-page" class="panel content-page" aria-labelledby="help-title" hidden>
         <div class="section-heading">
           <div>
-            <p class="eyebrow">How to play</p>
-            <h2 id="help-title" tabindex="-1">Help</h2>
+            <h2 id="help-title" tabindex="-1">How to Play</h2>
           </div>
           <button class="button secondary return-to-game" type="button">Back to game</button>
         </div>
         <div class="help-copy">
+          <p><strong><em>Idle Souls</em></strong> is a fan-made recreation of <em>Dark Souls</em> that plays itself. But, you are still an active participant and it is possible to die.</p>
+          <hr>
           <p>Choose an enemy from the target list. Your character attacks automatically once per game-second. If you choose a different enemy during a fight, you must finish the current fight before switching.</p>
-          <p>All Loot goes into your Bag. Equip an item to an available Equipment slot to activate its associated skill; equipping another item in that slot returns the previous item to your Bag.</p>
+          <p>All <strong>Loot</strong> goes into your <strong>Bag</strong>. Equip an item to an available <strong>Equipment</strong> slot to activate its associated skill; equipping another item in that slot returns the previous item to your Bag.</p>
           <hr>
-          <p>Enemies deal their listed damage between player attacks; armor reduces incoming damage [DEF - damage].</p>
-          <p>Player max HP starts at 400 and increases by 15 per level-up, up to 1,900. At zero player health, combat pauses and a Game Over screen shows your total enemies defeated. A Revive skill item in your Bag can restore full HP and continue the fight.</p>
+          <p>Enemies deal their listed damage between player attacks. Your <strong>Armor</strong> reduces incoming damage by both a flat amount and/or a percent depending on the items equipped.</p>
+          <p>There are certain <strong>Items</strong> that heal you, but at zero health: <strong>YOU DIED</strong>, and the game over screen will appear. Special <strong>Items</strong> you collect may revive you though.</p>
           <hr>
-          <p>Only dying or defeating a Boss pauses combat. Manually switching to Prepare or Shop does not pause. Choose a new enemy to resume.</p>
-          <p>Combat also pauses while the Menu is open or while you are viewing a menu page like Profile or Help</p>
+          <p>Only dying or defeating a <strong>Boss</strong> pauses combat. Simply choose a new enemy to resume. Manually switching to <strong>Prepare</strong> does not pause.</p>
+          <p>Combat also pauses while the Menu is open or while you are viewing a menu page like Profile or Settings</p>
           <hr>
-          <p>Progress is saved in this browser. Use the Profile page to copy a key to bring your progress to another machine.</p>
+          <p>Progress is saved in this browser. Use the <em>Profile</em> page to copy a key to bring your progress to another machine.</p>
         </div>
       </section>
 

@@ -153,7 +153,7 @@ const elements = {
   monsterToggleBtn: document.querySelector("#monster-dropdown .dropdown-toggle"),
   monsterMenu: document.querySelector("#monster-dropdown .dropdown-menu"),
   monsterSelectedLabel: document.querySelector("#monster-dropdown .dropdown-selected-label"),
-  monsterLevel: document.querySelector("#monster-level"),
+  monsterDamage: document.querySelector("#monster-dmg"),
   monsterName: document.querySelector("#monster-name"),
   monsterHealth: document.querySelector("#monster-health"),
   monsterHealthMeter: document.querySelector("#monster-health-meter"),
@@ -654,48 +654,63 @@ function render() {
       ? state.lastBossDrop
       : bossNames[0];
 
-    const materialRewards = rawMaterials
+    const soulReward = (target.souls ?? 0) > 0 ? `${numberFormat.format(target.souls)} Souls` : null;
+
+    // Use recorded dropped materials if available, otherwise fall back to rawMaterials during transition states
+    const droppedMats = state.lastDroppedMaterialNames ?? [];
+    const effectiveMaterials = (isSpecialEnemyType && state.awaitingMonsterSelection)
+      ? rawMaterials.filter((name) => {
+          const item = content.materials.find((m) => m.name === name);
+          const isBoss = (item?.notes ?? "").trim().toLowerCase() === "boss";
+          if (isBoss) {
+            return name === activeBossName;
+          }
+          // If drops were recorded, restrict to those; otherwise show all if none were explicitly logged yet
+          return droppedMats.length === 0 ? true : droppedMats.includes(name);
+        })
+      : rawMaterials.filter((name) => {
+          const item = content.materials.find((m) => m.name === name);
+          const isBoss = (item?.notes ?? "").trim().toLowerCase() === "boss";
+          return !isBoss || name === bossNames[0];
+        });
+
+    const materialRewards = effectiveMaterials
       .filter((name) => name.trim().toLowerCase() !== "soul")
-      .filter((name) => {
-        const item = content.materials.find((m) => m.name === name);
-        const isBoss = (item?.notes ?? "").trim().toLowerCase() === "boss";
-        
-        // Hide non-chosen boss materials when multiple exist
-        // Only filter down to the active drop when viewing the victory/defeated screen, not while fighting
-        return !(state.awaitingMonsterSelection && isSpecialEnemyType && isBoss) || name === activeBossName;
-      })
       .map((name) => {
         const item = content.materials.find((m) => m.name === name);
         const notes = (item?.notes ?? "").toLowerCase();
         
         let rewardString = "";
+        const matCount = target.materialCount ?? 1;
         if (notes.includes("boss")) {
           rewardString = name;
         } else if (notes.includes("unique")) {
-          rewardString = name; // Excludes the mat count number
+          rewardString = name; 
         } else if (notes.includes("upgrade")) {
           rewardString = name;
+        } else if (matCount > 1) {
+          rewardString = `${numberFormat.format(matCount)} ${name}`;
         } else {
-          rewardString = `${numberFormat.format(target.materialCount ?? 1)} ${name}`;
+          rewardString = name;
         }
 
-        // Append material chance if it's less than 100% and not a boss item
-        if (!notes.includes("boss") && target.materialChance < 100) {
+        const showChance = !(isSpecialEnemyType && state.awaitingMonsterSelection);
+        if (!notes.includes("boss") && target.materialChance < 100 && showChance) {
           rewardString += ` (${target.materialChance}%)`;
         }
 
         return rewardString;
       });
     
+    // souls are granted separately from items
     const itemRewards = [...lootRewardStrings, ...materialRewards];
 
     const isBoss = target.type.toLowerCase() === "boss";
     elements.bossKilledHeading.textContent = isBoss ? "VICTORY ACHIEVED" : "You Defeated";
     elements.bossShopHint.hidden = !isBoss; // Hide for minibosses, phantoms
-    elements.monsterLevel.textContent = `Level ${target.level}`;
     elements.bossKilledName.textContent = target.name;
     elements.bossKilledReward.replaceChildren(
-      document.createTextNode(`Rewards: ${numberFormat.format(target.xp)} XP`),
+      document.createTextNode(`Reward(s): ${soulReward}`),
     );
     for (const reward of lootRewards) {
       const item = content.loot.find((lootItem) => lootItem.name === reward.name);
@@ -717,6 +732,7 @@ function render() {
       );
     }
     elements.monsterName.textContent = monsterDisplayName(target);
+    elements.monsterDamage.textContent = `${numberFormat.format(target.damage)} DMG`;
     elements.monsterHealth.textContent = `${numberFormat.format(Math.max(0, state.monsterHp))} / ${numberFormat.format(target.health)}`;
     const healthPercent = Math.max(0, Math.min(100, (state.monsterHp / target.health) * 100));
     elements.monsterHealthMeter.style.width = `${healthPercent}%`;
@@ -727,8 +743,10 @@ function render() {
     elements.prepareMonsterHealthMeter.style.width = `${healthPercent}%`;
     elements.prepareMonsterHealthMeter.style.backgroundColor = `hsl(${Math.round(healthPercent * 1.2)} 75% 45%)`;
     elements.prepareMonsterHealthMeter.parentElement.setAttribute("aria-valuenow", String(Math.floor(healthPercent)));
-    const rewardsText = itemRewards.length > 0 ? `, ${itemRewards.join(", ")}` : "";
-    elements.monsterReward.textContent = `Deals ${numberFormat.format(target.damage)} damage\nRewards: ${numberFormat.format(target.xp)} XP${rewardsText}`;
+
+    const rewardsText = itemRewards.length > 0 ? itemRewards.join(", ") : "";
+    elements.monsterReward.textContent = rewardsText ? `Rewards: ${rewardsText}` : "Rewards: none";
+
     elements.defeatedCount.textContent = `Defeated: ${numberFormat.format(state.kills[target.id] ?? 0)} monsters`;
     elements.unlockedCount.textContent = `${numberFormat.format(availableMonsters.length)} of ${numberFormat.format(content.monsters.length)} unlocked`;
   } else {
@@ -806,6 +824,7 @@ function render() {
     gameSpeed = GAME_SPEEDS[Number(elements.gameSpeed.value)];
     elements.gameSpeedValue.value = `${gameSpeed}×`;
     lastTickAt = Date.now();
+    scheduleNextTick(); // re-schedule with new interval
     try {
       localStorage.setItem(GAME_SPEED_KEY, String(gameSpeed));
     } catch (error) {
@@ -1788,6 +1807,16 @@ const bagTabs = [
   [elements.bagMaterialsTab, "materials"],
 ];
 
+let tickIntervalId = null;
+function scheduleNextTick() {
+  if (tickIntervalId) {
+    window.clearInterval(tickIntervalId);
+  }
+  // Base interval (1000ms) divided by the game speed multiplier
+  const interval = 1000 / gameSpeed;
+  tickIntervalId = window.setInterval(tick, interval);
+}
+
 function tick() {
   const now = Date.now();
   const elapsed = Math.max(0, (now - lastTickAt) / 1000);
@@ -1795,14 +1824,16 @@ function tick() {
   const wasAwaitingMonsterSelection = state.awaitingMonsterSelection;
   const previousTargetId = state.targetMonsterId;
   const previousTargetKills = state.kills[previousTargetId] ?? 0;
+
   const gameIsActive = currentPage === "game" && elements.siteMenu.hidden;
   if (gameIsActive) {
+    // if game speed is 2x, we see 2 actions per second
     advanceGame(state, content, elapsed * gameSpeed);
 
     // if new monster activated, we will update the bg image
     checkAndUpdateBackground();
   }
-
+  
   // Triggered when a Boss is defeated (entering awaiting selection state)
   if (!wasAwaitingMonsterSelection && state.awaitingMonsterSelection) {
     setStatus(state.targetMonsterId === null
@@ -2148,7 +2179,11 @@ async function startGame() {
         if (isRestore && saved) {
           window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
         }
-        window.setInterval(tick, 1000);
+        
+        scheduleNextTick();
+        // OLD TICK PER SECOND
+        //window.setInterval(tick, 1000);
+        
         window.addEventListener("pagehide", saveState);
       }, 1000);
     };
