@@ -1121,6 +1121,7 @@ function render() {
       
       const materialUses = (item.uses ?? item.use ?? "").toLowerCase().split(/[\s,]+/);
       const isCraftMaterial = materialUses.includes("craft");
+      const isSpecialMaterial = materialUses.includes("special");
       const isBossMaterial = (item.notes ?? "").trim().toLowerCase() === "boss";
 
       const textContainer = createTextElement("div", "skill-copy", "");
@@ -1130,11 +1131,22 @@ function render() {
       const titleSpan = createTextElement("strong", titleClasses, item.name);
       textContainer.append(titleSpan);
       
-      if (isCraftMaterial && (state.activeTab === "shop")) {
-        const craftNoteSpan = createTextElement("span", "muted", "(Also used in Crafting)");
-        craftNoteSpan.style.display = "block";
-        craftNoteSpan.style.fontWeight = "normal";
-        textContainer.append(craftNoteSpan);
+      // Add extra text to materials in shop as a warning
+      if (state.activeTab === "shop")
+      {
+        if (isCraftMaterial) {
+          const craftNoteSpan = createTextElement("span", "muted", "(Also used in Crafting)");
+          craftNoteSpan.style.display = "block";
+          craftNoteSpan.style.fontWeight = "normal";
+          textContainer.append(craftNoteSpan);
+        }
+        else if (isSpecialMaterial)
+        {
+          const specialNoteSpan = createTextElement("span", "muted", "(Special Use)");
+          specialNoteSpan.style.display = "block";
+          specialNoteSpan.style.fontWeight = "normal";
+          textContainer.append(specialNoteSpan);
+        }
       }
       
       const badge = createTextElement("span", "badge", `×${state.currencyInventory[item.id]}`);
