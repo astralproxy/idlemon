@@ -262,7 +262,7 @@ function showGameEndDialog() {
   }
 
   elements.gameEndDialogTitle.textContent = "The Fire Fades...";
-  elements.gameEndDialogMessage.textContent = "The Lord of Cinder is defeated. Do you choose to take up his crown, or continue your journey in this now darkened world?";
+  elements.gameEndDialogMessage.textContent = "The Lord of Cinder is quelled. Willeth thou take up his crown, or continue thy sojourne in this now darkened world?";
   elements.gameEndDialogYes.textContent = "Link the Fire (NG+)";
   elements.gameEndDialogNo.textContent = "Walk Away (continue)";
 
@@ -1465,7 +1465,7 @@ function renderCheatLoot() {
         state.kills[monster.id] = 0;
       }
     }
-    
+
     setStatus("All enemies temporarily unlocked for selection.");
     populateMonsterSelect();
     render();
