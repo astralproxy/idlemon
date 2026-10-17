@@ -649,6 +649,8 @@ h3 {
 
 #monster-reward {
   white-space: pre-line;
+  font-size: 0.72rem;
+  min-height: 4.5em;
 }
 
 .monster-select-row {

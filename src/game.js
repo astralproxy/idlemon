@@ -209,8 +209,9 @@ export function buyShopItem(state, content, offerIndex, random = Math.random) {
     return false;
   }
 
-  if (getTotalItemCount(state, item.id) >= 9) {
-    throw new Error("You already hold the maximum of 9 of this item.");
+  const maxCount = getMaxItemCount(item);
+  if (getTotalItemCount(state, item.id) >= maxCount) {
+    throw new Error("Maximum of ${maxCount} ${item.name} already held.");
   }
 
   state.currencyBalance = getCurrencyBalance(state, content) - item.value;
@@ -224,6 +225,16 @@ export function buyShopItem(state, content, offerIndex, random = Math.random) {
     random,
   );
   return true;
+}
+
+function getMaxItemCount(item) {
+  return (item?.name ?? "").toLowerCase().includes("estus") ? 5 : 9;
+}
+
+function getTotalItemCount(state, lootId) {
+  const bagCount = state.lootInventory[lootId] ?? 0;
+  const equippedCount = Object.values(state.gear ?? {}).filter((id) => id === lootId).length;
+  return bagCount + equippedCount;
 }
 
 export function addLootToBag(state, content, lootId) {
@@ -240,18 +251,13 @@ export function addLootToBag(state, content, lootId) {
       return false;
     }
   }
-  else if (getTotalItemCount(state, item.id) >= 9) {
-    return false; // max number of Item already held
+  const maxCount = getMaxItemCount(item);
+  if (getTotalItemCount(state, item.id) >= maxCount) {
+    throw new Error("Maximum of ${maxCount} ${item.name} already held.");
   }
 
   state.lootInventory[item.id] = (state.lootInventory[item.id] ?? 0) + 1;
   markLootNew(state, item.id);
-}
-
-function getTotalItemCount(state, lootId) {
-  const bagCount = state.lootInventory[lootId] ?? 0;
-  const equippedCount = Object.values(state.gear ?? {}).filter((id) => id === lootId).length;
-  return bagCount + equippedCount;
 }
 
 export function sellLoot(state, content, lootId, count = 1) {
@@ -959,7 +965,13 @@ function grantKillRewards(state, content, monster, random = Math.random) {
   state.kills[monster.id] = (state.kills[monster.id] ?? 0) + 1;
   grantExperience(state, Math.max(1, Math.floor(monster.xp * stats.xpMultiplier)));
 
-    const lootChance = monster.lootChance ?? 100;
+  // Grant souls from the monster's Souls column
+  const soulAmount = Number(monster.souls) || 0;
+  if (soulAmount > 0) {
+    state.currencyBalance = (state.currencyBalance ?? 0) + soulAmount;
+  }
+
+  const lootChance = monster.lootChance ?? 100;
   
   const rawLootNames = monster.lootNames ?? monster.lootName ?? [];
   const lootNames = typeof rawLootNames === "string"
@@ -991,7 +1003,8 @@ function grantKillRewards(state, content, monster, random = Math.random) {
           const isUnique = (item.notes ?? "").toLowerCase().includes("unique");
           const totalOwned = (state.lootInventory[item.id] ?? 0) + (Object.values(state.gear).includes(item.id) ? 1 : 0);
 
-          if (isUnique ? totalOwned === 0 : getTotalItemCount(state, item.id) < 9) {
+          const maxCount = getMaxItemCount(item);
+          if (isUnique ? totalOwned === 0 : getTotalItemCount(state, item.id) < maxCount) {
             state.lootInventory[item.id] = (state.lootInventory[item.id] ?? 0) + 1;
             markLootNew(state, item.id);
           }

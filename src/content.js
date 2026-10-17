@@ -168,6 +168,7 @@ function parseMonster(row) {
     type: row.Type?.trim() ?? "",
     level,
     health: number(row.HP, "HP", 1),
+    souls: row.Souls?.trim() ? integer(row.Souls, "Souls", 0) : 0,
     damage: number(row.Damage, "Damage", 0),
     xp: level * 10,
     unlock_level: level,
