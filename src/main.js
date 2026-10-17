@@ -1550,7 +1550,7 @@ function closeMenu() {
 }
 
 function selectBagTab(tab) {
-  if (bagCollapsed) {
+  if (bagCollapsed && tab !== "items") {
     bagCollapsed = false;
   }
 
@@ -1751,15 +1751,22 @@ elements.playerStatsToggle.addEventListener("click", () => {
   playerStatsCollapsed = !playerStatsCollapsed;
   render();
 });
+
 for (const [toggle, isCollapsed, setCollapsed] of [
   [elements.gearToggle, () => gearCollapsed, (value) => { gearCollapsed = value; }],
-  [elements.bagToggle, () => bagCollapsed, (value) => { bagCollapsed = value; }],
+  [elements.bagToggle, () => bagCollapsed, (value) => { 
+    bagCollapsed = value;
+    if (bagCollapsed) {
+      selectBagTab("items");
+    }
+  }],
 ]) {
   toggle.addEventListener("click", () => {
     setCollapsed(!isCollapsed());
     render();
   });
 }
+
 elements.prepareTab.addEventListener("click", () => selectCombatTab("prepare"));
 elements.shopTab.addEventListener("click", () => selectCombatTab("shop"));
 const combatTabs = [
