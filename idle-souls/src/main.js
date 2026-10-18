@@ -53,8 +53,7 @@ const elements = {
   gameEndDialogNo: document.querySelector("#game-end-dialog-no"),
 
   // Profile button to start NG+ if not chosen immediately at game end
-  profileNgPlusContainer: document.querySelector("#profile-ngplus-container"),
-  profileLinkFireBtn: document.querySelector("#profile-link-fire-btn"),
+  ngPlusBtn: document.querySelector("#ngplus-btn"),
 
   status: document.querySelector("#game-status"),
   resetGame: document.querySelector("#reset-game"),
@@ -650,6 +649,11 @@ function render() {
 
   elements.status.textContent = statusMessage;
 
+  // Button to trigger NG+ if player continued at end game
+  if (elements.ngPlusBtn) {
+    elements.ngPlusBtn.hidden = !state.canLinkFire;
+  }
+
   if (!elements.profilePage.hidden) {
     if (elements.profilePlaytime) {
       elements.profilePlaytime.textContent = formatPlaytime(state.playtime ?? 0);
@@ -657,11 +661,6 @@ function render() {
 
     if (elements.profileNgplus) {
       elements.profileNgplus.textContent = state.ngPlus ?? 0;
-    }
-
-    // Button to trigger NG+ if player continued at end game
-    if (elements.profileNgPlusContainer) {
-      elements.profileNgPlusContainer.hidden = !state.canLinkFire;
     }
 
     renderStatusLog();
@@ -1996,12 +1995,12 @@ function triggerNewGamePlus() {
     `• Souls retained •<br>` +
     `• Gear + mats retained •<br>` +
     `<br>• Key items lost •<br>` +
-    `• Enemy health + dmg increased •<br>` +
+    `• Enemy HP + DMG increased •<br>` +
     `• Bosses reset •`;
 
   elements.splashStartBtn.hidden = false;
   elements.splashStartBtn.disabled = false;
-  elements.splashStartBtn.textContent = "Begin NG+";
+  elements.splashStartBtn.textContent = "Start NG+";
 
   elements.splashStartBtn.onclick = () => {
     elements.splashStartBtn.disabled = true;
@@ -2090,7 +2089,7 @@ function tick() {
   }
 }
 
-elements.profileLinkFireBtn.addEventListener("click", async () => {
+elements.ngPlusBtn.addEventListener("click", async () => {
   const confirmed = await showConfirmDialog(
     "Begin New Game+ ?",
     "",
