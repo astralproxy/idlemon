@@ -1758,6 +1758,10 @@ footer p {
     grid-template-columns: 1fr;
   }
 
+  .shop-full {
+    color: var(--muted);
+  }
+
   .combat-panel,
   .skills-panel,
   .loot-panel {

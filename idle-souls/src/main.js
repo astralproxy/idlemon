@@ -14,6 +14,7 @@ import {
   experienceForNextLevel,
   getPlayerMaxHp,
   getPlayerStats,
+  isItemCountMaxed,
   isTwoHandEquipped,
   MAX_OFFLINE_SECONDS,
   parseSavedState,
@@ -1408,7 +1409,17 @@ function renderShop() {
         setStatus(`Could not buy ${item.name}: ${error.message}`);
       }
     });
-    actions.append(button);
+
+    if (isItemCountMaxed(state, item)) {
+      button.disabled = true;
+      const fullLabel = document.createElement("em");
+      fullLabel.className = "shop-full";
+      fullLabel.textContent = "Full";
+      actions.append(fullLabel);
+    } else {
+      actions.append(button);
+    }
+
     card.append(details, actions);
     elements.shopList.append(card);
   });
