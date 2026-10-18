@@ -1518,6 +1518,28 @@ button:focus-visible {
   background: var(--accent);
 }
 
+.ngplus-btn {
+  display: flex;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: #ffd24a;
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ngplus-btn:hover {
+  border-color: #ffd24a;
+}
+
 .site-menu {
   position: absolute;
   z-index: 2;
