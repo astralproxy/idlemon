@@ -401,7 +401,6 @@ export function createInitialState(content, now = Date.now()) {
     currencyInventory: {},
     currencyBalance: 0,
     kills: {},
-    statusLog: [],
     updatedAt: now,
   };
 }
@@ -631,7 +630,6 @@ export function parseSavedState(serialized, content) {
     seenMaterials,
     currencyBalance,
     kills,
-    statusLog: [], // fresh every time
     updatedAt: state.updatedAt,
   };
 }

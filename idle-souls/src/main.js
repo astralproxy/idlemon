@@ -202,6 +202,7 @@ const elements = {
 };
 
 const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
+const numberFormatDecimal = new Intl.NumberFormat(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const GEAR_SLOTS = ["R-Hand", "L-Hand", "Ring", "Head", "Chest", "Arms", "Legs"];
 const QUICK_ITEM_IGNORED_SKILLS = new Set(["revive"]);
 const INVENTORY_ORDER_KEY = "idlemon-inventory-order-swapped";
@@ -226,6 +227,7 @@ let resetting = false;
 let shopTooltipTimeout;
 let isMonsterSelectOpen = false;
 let lastKnownActiveMonsterId = null;
+let statusLog = [];
 
 function showError(message) {
   elements.game.hidden = true;
@@ -319,9 +321,9 @@ function setStatus(message) {
 
   const timestamp = `${mm}/${dd}/${yy} ${hh}:${min}:${ss}`;
 
-  state.statusLog.unshift({ text: message, time: timestamp });
-  if (state.statusLog.length > 100) {
-    state.statusLog.pop();
+  statusLog.unshift({ text: message, time: timestamp });
+  if (statusLog.length > 100) {
+    statusLog.pop();
   }
 
   statusTimeout = window.setTimeout(() => {
@@ -350,9 +352,10 @@ function lootEffectText(item) {
 
   return skills.map((skName, idx) => {
     const eff = item.skillEffects?.[idx] ?? item.skillEffects?.[0] ?? { effectValue: item.effectValue, effectIsPercentage: item.effectIsPercentage };
+    const formatter = item.slot === "" ? numberFormat : numberFormatDecimal;
     const effectValueStr = eff.effectIsPercentage
-      ? `${numberFormat.format(eff.effectValue)}%`
-      : numberFormat.format(eff.effectValue);
+      ? `${formatter.format(eff.effectValue)}%`
+      : formatter.format(eff.effectValue);
     return `${skName} (${effectValueStr})`;
   }).join(", ");
 }
@@ -511,10 +514,10 @@ function populateMonsterSelect() {
     const isSelected = !state.awaitingMonsterSelection && monster.id === (state.pendingTargetMonsterId ?? state.targetMonsterId);
 
     if (isObscured) {
-      item.textContent = "??? (Beat boss to reveal)";
+      item.textContent = "??? (beat boss to reveal)";
       item.classList.add("is-disabled");
     } else if (missingRequirement) {
-      item.textContent = `${monsterDisplayName(monster)} (req: ${monster.requirements})`;
+      item.textContent = `??? (req: ${monster.requirements})`;
       item.classList.add("is-italic", "is-disabled");
     }else {
       item.classList.remove("is-italic"); // just in case
@@ -554,7 +557,7 @@ function renderStatusLog() {
   if (!elements.statusLogList || !state) return;
   renderList(
     elements.statusLogList,
-    state.statusLog ?? [],
+    statusLog ?? [],
     "No status history yet.",
     (entry) => {
       const item = document.createElement("div");
@@ -618,8 +621,8 @@ function render() {
   const hpPercent = (playerHp / playerHpMax) * 100;
   elements.compactPlayerHp.classList.toggle("is-low-hp", hpPercent < 20);
   //elements.compactPlayerArmor.textContent = numberFormat.format(stats.defense);
-  elements.compactPlayerArmor.textContent = `${numberFormat.format(stats.defense)} + ${stats.defensePercent}%`;
-  elements.compactPlayerDamage.textContent = numberFormat.format(stats.damage);
+  elements.compactPlayerArmor.textContent = `${numberFormatDecimal.format(stats.defense)} + ${stats.defensePercent}%`;
+  elements.compactPlayerDamage.textContent = numberFormatDecimal.format(stats.damage);
   elements.playerStatsDetails.hidden = playerStatsCollapsed;
   elements.playerStatsCompact.hidden = !playerStatsCollapsed;
   elements.playerStatsToggle.setAttribute("aria-expanded", String(!playerStatsCollapsed));
@@ -776,7 +779,7 @@ function render() {
 
     const isBoss = target.type.toLowerCase() === "boss";
     elements.bossKilledHeading.textContent = isBoss ? "VICTORY ACHIEVED" : "You Defeated";
-    elements.bossShopHint.hidden = !isBoss; // Hide for minibosses, phantoms
+    elements.bossShopHint.hidden = !isBoss || state.bossShopHintDismissed; // Not for minibosses, phantoms
     elements.bossKilledName.textContent = target.name;
     elements.bossKilledReward.replaceChildren(
       document.createTextNode(`Reward(s): ${soulReward}`),
@@ -1655,7 +1658,10 @@ function saveState() {
   }
   state.updatedAt = Date.now();
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+    localStorage.setItem(
+      SAVE_KEY,
+      JSON.stringify(state, (key, value) => (key === "statusLog" ? undefined : value))
+    );
     saveErrorShown = false;
     return true;
   } catch (error) {
@@ -1825,6 +1831,7 @@ async function selectCombatTab(tabName) {
   }
   if (tabName === "shop") {
     state.shopVisited = true;
+    state.bossShopHintDismissed = true;
   }
   if (tabName === "prepare") {
     state.prepareViewed = true;
@@ -2026,6 +2033,8 @@ function triggerNewGamePlus() {
   // Close Profile menu and return to the Fight tab
   state.activeTab = "fight";
   state.prepareViewed = false;
+
+  populateMonsterSelect(); // rebuild list from reset kills/keys
   showPage("game");
 }
 
