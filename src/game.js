@@ -1056,7 +1056,7 @@ function grantKillRewards(state, content, monster, random = Math.random) {
     for (let i = 0; i < lootNames.length; i++) {
       const name = lootNames[i];
       const chance = Number.isFinite(lootChances[i]) ? lootChances[i] : (lootChances[0] ?? 100);
-      const roll = Math.floor(random * 100);
+      const roll = Math.floor(Math.random() * 100);
       const dropped = chance >= 100 || roll < chance;
       lastRoll = roll;
 
@@ -1101,7 +1101,7 @@ function grantKillRewards(state, content, monster, random = Math.random) {
     ?? (monster.materialName ? [monster.materialName] : []);
 
   const hasMaterialDrop = materialChance >= 100
-    || (materialCount > 0 && materialNames.length > 0 && Math.floor(random * 100) < materialChance);
+    || (materialCount > 0 && materialNames.length > 0 && Math.floor(Math.random() * 100) < materialChance);
   
   if (materialCount > 0 && hasMaterialDrop) {
     const bossMaterials = [];
