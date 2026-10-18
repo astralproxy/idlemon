@@ -9,6 +9,8 @@ import {
   createRestoreKey,
   createInitialState,
   equipLoot,
+  getMonsterHealth,
+  getMonsterDamage,
   experienceForNextLevel,
   getPlayerMaxHp,
   getPlayerStats,
@@ -33,6 +35,7 @@ const elements = {
   splashText: document.querySelector("#splash-text"),
   //splashProgressFill: document.querySelector("#splash-progress-fill"),
   splashStartBtn: document.querySelector("#splash-start-btn"),
+  splashImage: document.querySelector("#splash-image"),
   game: document.querySelector("#game"),
   
   // Generic confirmation popup
@@ -49,6 +52,10 @@ const elements = {
   gameEndDialogYes: document.querySelector("#game-end-dialog-yes"),
   gameEndDialogNo: document.querySelector("#game-end-dialog-no"),
 
+  // Profile button to start NG+ if not chosen immediately at game end
+  profileNgPlusContainer: document.querySelector("#profile-ngplus-container"),
+  profileLinkFireBtn: document.querySelector("#profile-link-fire-btn"),
+
   status: document.querySelector("#game-status"),
   resetGame: document.querySelector("#reset-game"),
   menuToggle: document.querySelector("#menu-toggle"),
@@ -56,6 +63,7 @@ const elements = {
   cheatMenuItem: document.querySelector("#cheat-menu-item"),
   profilePage: document.querySelector("#profile-page"),
   profilePlaytime: document.querySelector("#profile-playtime"),
+  profileNgplus: document.querySelector("#profile-ngplus"),
   helpPage: document.querySelector("#help-page"),
   settingsPage: document.querySelector("#settings-page"),
   settingsAutoHealEnabled: document.querySelector("#settings-auto-heal-enabled"),
@@ -262,7 +270,7 @@ function showGameEndDialog() {
   }
 
   elements.gameEndDialogTitle.textContent = "The Fire Fades...";
-  elements.gameEndDialogMessage.textContent = "The Lord of Cinder is quelled. Willeth thou take up his crown, or continue thy sojourne in this now darkened world?";
+  elements.gameEndDialogMessage.textContent = "The Lord of Cinder is quelled. Wilt thou take up his crown, or continue thy sojourne in this now darkened world?";
   elements.gameEndDialogYes.textContent = "Link the Fire (NG+)";
   elements.gameEndDialogNo.textContent = "Walk Away (continue)";
 
@@ -309,7 +317,7 @@ function setStatus(message) {
   const min = pad(now.getMinutes());
   const ss = pad(now.getSeconds());
 
-  const timestamp = `$${mm}/{dd}/${yy} ${hh}:${min}:${ss}`;
+  const timestamp = `${mm}/${dd}/${yy} ${hh}:${min}:${ss}`;
 
   state.statusLog.unshift({ text: message, time: timestamp });
   if (state.statusLog.length > 100) {
@@ -647,6 +655,15 @@ function render() {
       elements.profilePlaytime.textContent = formatPlaytime(state.playtime ?? 0);
     }
 
+    if (elements.profileNgplus) {
+      elements.profileNgplus.textContent = state.ngPlus ?? 0;
+    }
+
+    // Button to trigger NG+ if player continued at end game
+    if (elements.profileNgPlusContainer) {
+      elements.profileNgPlusContainer.hidden = !state.canLinkFire;
+    }
+
     renderStatusLog();
     
     if (document.activeElement !== elements.restoreKey) {
@@ -784,9 +801,16 @@ function render() {
       );
     }
     elements.monsterName.textContent = monsterDisplayName(target);
-    elements.monsterDamage.textContent = `${numberFormat.format(target.damage)} DMG`;
-    elements.monsterHealth.textContent = `${numberFormat.format(Math.max(0, state.monsterHp))} / ${numberFormat.format(target.health)}`;
-    const healthPercent = Math.max(0, Math.min(100, (state.monsterHp / target.health) * 100));
+
+    const scaledDamage = getMonsterDamage(target, state.ngPlus);
+    elements.monsterDamage.textContent = `${numberFormat.format(getMonsterDamage(target, state.ngPlus))} DMG`;
+    //elements.monsterDamage.textContent = `${numberFormat.format(target.damage)} DMG`;
+
+    const scaledHealth = getMonsterHealth(target, state.ngPlus);
+    elements.monsterHealth.textContent = `${numberFormat.format(Math.max(0, state.monsterHp))} / ${numberFormat.format(scaledHealth)}`;
+    //elements.monsterHealth.textContent = `${numberFormat.format(Math.max(0, state.monsterHp))} / ${numberFormat.format(target.health)}`;
+    const healthPercent = Math.max(0, Math.min(100, (state.monsterHp / scaledHealth) * 100));
+    
     elements.monsterHealthMeter.style.width = `${healthPercent}%`;
     elements.monsterHealthMeter.style.backgroundColor = `hsl(${Math.round(healthPercent * 1.2)} 75% 45%)`;
     elements.monsterHealthMeter.parentElement.setAttribute("aria-valuenow", String(Math.floor(healthPercent)));
@@ -814,7 +838,9 @@ function render() {
     .filter((monster) => monster.type.toLowerCase() === "boss")
     .reduce((total, boss) => total + (state.kills[boss.id] ?? 0), 0);
 
-  elements.gameOverStats.textContent = `Player level: ${numberFormat.format(state.level)}
+  elements.gameOverStats.textContent =
+    `NG+ ${numberFormat.format(state.ngPlus)}
+    Player level: ${numberFormat.format(state.level)}
     Total Playtime: ${formatPlaytime(state.playtime ?? 0)}
     \nSouls lost: ${numberFormat.format(soulsLost)}
     \nEnemies defeated: ${numberFormat.format(totalKills)}
@@ -1906,6 +1932,93 @@ function scheduleNextTick() {
   tickIntervalId = window.setInterval(tick, interval);
 }
 
+function triggerNewGamePlus() {
+  setStatus(`Entering NG+ ${state.ngPlus}`);
+
+  state.canLinkFire = false; // Revoke persistent button access
+
+  state.ngPlus = (state.ngPlus ?? 0) + 1;
+  //state.xp = 0;
+  //state.level = 1;
+  //state.hp = getPlayerMaxHp(1);
+
+  // Reset current monster data
+  state.monsterHp = 0;
+  state.targetMonsterId = null;
+  state.awaitingMonsterSelection = true;
+  //state.pendingTargetMonsterId = null; // would clear last enemy reward card
+
+  // Reset all monster kill counts to 0
+  for (const monster of content.monsters) {
+    state.kills[monster.id] = 0;
+  }
+
+  // Clear Active Combat Timers & Temporary Buffs
+  state.attackRemainder = 0;
+  state.nextHitDefense = 0;
+  state.nextHitDefensePercent = 0;
+
+  // REMOVE KEYS and Special Items from INVENTORY ---
+  const shouldRemoveItem = (name) => {
+    const lower = name.toLowerCase();
+    return lower.includes("key")
+      || lower.includes("lordvessel") || lower.includes("lord soul")
+      || lower.includes("peculiar doll");
+  };
+  // Check and clean materials/currency items
+  for (const matId of Object.keys(state.currencyInventory ?? {})) {
+    const mat = content.materials.find((m) => m.id === matId);
+    if (mat && shouldRemoveItem(mat.name)) {
+      delete state.currencyInventory[matId];
+    }
+  }
+
+  // Check and clean loot items
+  // for (const lootId of Object.keys(state.lootInventory ?? {})) {
+  //   const item = content.loot.find((l) => l.id === lootId);
+  //   if (item && shouldRemoveItem(item.name)) {
+  //     delete state.lootInventory[lootId];
+  //     state.newLootIds = state.newLootIds.filter((id) => id !== lootId);
+  //   }
+  // }
+
+  // Open the SHOP
+  state.shopUnlocked = true;
+  state.shopVisited = false;
+
+  // Fade UI to black and display NG+ details on the splash screen
+  elements.splashScreen.classList.remove("fade-out");
+  elements.splashScreen.hidden = false;
+  if (elements.splashImage && state.ngPlus >= 1) elements.splashImage.hidden = true; //elements.splashImage.src = "";
+
+  elements.splashText.innerHTML = `New Game+ ${state.ngPlus}<br>` +
+    `<br>• Estus charges +1 •<br>` +
+    `• Souls retained •<br>` +
+    `• Gear + mats retained •<br>` +
+    `<br>• Key items lost •<br>` +
+    `• Enemy health + dmg increased •<br>` +
+    `• Bosses reset •`;
+
+  elements.splashStartBtn.hidden = false;
+  elements.splashStartBtn.disabled = false;
+  elements.splashStartBtn.textContent = "Begin NG+";
+
+  elements.splashStartBtn.onclick = () => {
+    elements.splashStartBtn.disabled = true;
+    elements.splashScreen.classList.add("fade-out");
+    window.setTimeout(() => {
+      elements.splashScreen.hidden = true;
+      render();
+      saveState();
+    }, 1000);
+  };
+
+  // Close Profile menu and return to the Fight tab
+  state.activeTab = "fight";
+  state.prepareViewed = false;
+  showPage("game");
+}
+
 function tick() {
   const now = Date.now();
   const elapsed = Math.max(0, (now - lastTickAt) / 1000);
@@ -1934,26 +2047,17 @@ function tick() {
     
     const lastBoss = bosses[bosses.length - 1];
     if (lastBoss && targetMonster && targetMonster.id === lastBoss.id) {
-      showGameEndDialog(
-      ).then((linkFire) => {
+      showGameEndDialog().then((linkFire) => {
         if (linkFire) {
-          state.ngPlus = (state.ngPlus ?? 0) + 1;
-          state.level = 1;
-          state.xp = 0;
-          state.hp = getPlayerMaxHp(1);
-          state.kills = {};
-          state.targetMonsterId = null;
-          state.monsterHp = 0;
-          state.awaitingMonsterSelection = true;
-          state.shopUnlocked = true;
-          state.shopVisited = false;
-          setStatus(`Entering NG+ ${state.ngPlus}`);
+          triggerNewGamePlus();
         } else {
+          state.canLinkFire = true; // Save flag so button remains visible across sessions
           setStatus("Continuing with current journey...");
+          render();
+          saveState();
         }
-        render();
-        saveState();
       });
+      
       return;
     }
 
@@ -1985,6 +2089,18 @@ function tick() {
     saveState();
   }
 }
+
+elements.profileLinkFireBtn.addEventListener("click", async () => {
+  const confirmed = await showConfirmDialog(
+    "Begin New Game+ ?",
+    "",
+    "Yes",
+    "Cancel"
+  );
+  if (confirmed) {
+    triggerNewGamePlus();
+  }
+});
 
 elements.monsterToggleBtn.addEventListener("click", () => {
   const isExpanded = elements.monsterToggleBtn.getAttribute("aria-expanded") === "true";
@@ -2296,8 +2412,8 @@ async function startGame() {
         renderCheatLoot();
         render();
 
-        const saved = saveState();
-        if (isRestore && saved) {
+        const saveSuccess = saveState();
+        if (isRestore && saveSuccess) {
           window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
         }
         
@@ -2306,6 +2422,11 @@ async function startGame() {
         //window.setInterval(tick, 1000);
         
         window.addEventListener("pagehide", saveState);
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "hidden") {
+            saveState();
+          }
+        });
       }, 1000);
     };
 

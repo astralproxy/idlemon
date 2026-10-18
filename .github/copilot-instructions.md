@@ -62,7 +62,7 @@ Special Notes / Crafting: Supports Crafted and Notes ("boss", "unique", "upgrade
 
 Player & Stats
 
-HP Formula: PLAYER_STARTING_MAX_HP (400) + (level - 1) * PLAYER_MAX_HP_PER_LEVEL (15) up to PLAYER_MAX_HP_CAP (1900).
+HP Formula is a piecewise progression formula: Base PLAYER_STARTING_MAX_HP 400 HP, +15 HP per level up to level 30, then +10 HP per level up to level 99, reaching a PLAYER_MAX_HP_CAP of 1525 HP.
 
 Stats (getPlayerStats):
 
@@ -119,6 +119,16 @@ Save / Restore / Persistence
 Save Key: Encoded as a Base64 URL-safe string containing a compact JSON array of player state indices to keep URLs short and restore keys shareable (createRestoreKey and restoreStateFromKey).
 
 Save Versioning: Tracked via SAVE_VERSION = 12. State parsing safely migrates or repairs malformed/outdated saves.
+
+New Game Plus (NG+) Feature:
+  - Triggered upon defeating the final boss and choosing to "Link the Fire" from the endgame dialog.
+  - Retains player progression: Level, unlocked/held loot, equipment, and Soul balance.
+  - World & Loop Reset: Resets monster kill counts (state.kills), clears active/pending targets, resets active monster HP, closes shop access, and clears transient timers, active buffs, and status history logs.
+
+Difficulty Scaling (Monster Health):
+  - Scaled per NG+ level using getMonsterHealth(monster, state.ngPlus).
+  - Base multiplier for NG+ 1 is 1.54x.
+  - Subsequent NG+ levels add non-stacking flat bonuses: NG+2 (+7%), NG+3 (+10%), NG+4 (+14%), NG+5 (+19%), and NG+6+ (+25%).
 
 4. UI Layer & Views (main.js)
 

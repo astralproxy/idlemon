@@ -2,15 +2,18 @@ export const MAX_OFFLINE_SECONDS = 10; // don't let player log off instantly to 
 export const SAVE_KEY = "idlemon-save-v1";
 export const SAVE_VERSION = 13;
 export const PLAYER_STARTING_MAX_HP = 400;
-export const PLAYER_MAX_HP_PER_LEVEL = 15;
-export const PLAYER_MAX_HP_CAP = 1900;
-export const SHOP_REFRESH_COST = 5;
+export const PLAYER_MAX_HP_CAP = 1525;
+export const ESTUS_BASE_COUNT = 5;
+export const ITEM_MAX_COUNT = 9;
+export const MAX_MATERIALS = 99;
+export const SHOP_REFRESH_COST = 50;
 
 export function getPlayerMaxHp(level) {
-  return Math.min(
-    PLAYER_MAX_HP_CAP,
-    PLAYER_STARTING_MAX_HP + Math.max(0, level - 1) * PLAYER_MAX_HP_PER_LEVEL,
-  );
+  const l = Math.max(1, level);
+  const standardLevels = Math.min(l - 1, 29);
+  const extraLevels = Math.max(0, l - 30);
+  const hp = PLAYER_STARTING_MAX_HP + (standardLevels * 15) + (extraLevels * 10);
+  return Math.min(PLAYER_MAX_HP_CAP, hp);
 }
 
 export function resetSavedGame(storage = globalThis.localStorage) {
@@ -51,6 +54,8 @@ export function createRestoreKey(state, content, now = Date.now()) {
     lootIndices,
     currencyIndices,
     killIndices,
+    state.ngPlus ?? 0,
+    state.canLinkFire,
     now
   ];
 
@@ -78,7 +83,7 @@ export function restoreStateFromKey(key, content, now = Date.now()) {
 
     // If it's an array, unpack it into the standard state format
     if (Array.isArray(parsed)) {
-      const [level, xp, hp, currencyBalance, gearIndices, lootIndices, currencyIndices, killIndices] = parsed;
+      const [level, xp, hp, currencyBalance, gearIndices, lootIndices, currencyIndices, killIndices, ngPlus, canLinkFire] = parsed;
       const baseState = createInitialState(content, now);
 
       const gear = {};
@@ -116,6 +121,8 @@ export function restoreStateFromKey(key, content, now = Date.now()) {
       baseState.monsterHp = 0;
       baseState.awaitingMonsterSelection = true;
       baseState.pendingTargetMonsterId = null;
+      baseState.ngPlus = Number.isInteger(ngPlus) && ngPlus >= 0 ? ngPlus : 0;
+      baseState.canLinkFire = Boolean(canLinkFire);
       baseState.updatedAt = now;
 
       return parseSavedState(JSON.stringify(baseState), content);
@@ -128,6 +135,47 @@ export function restoreStateFromKey(key, content, now = Date.now()) {
   } catch (error) {
     throw new Error("The restore key is malformed or contains invalid progress.");
   }
+}
+
+export function getMonsterHealth(monster, ngPlus = 0) {
+  const baseHealth = monster.health ?? 0;
+  if (ngPlus <= 0) return baseHealth;
+
+  // Non-stacking flat bonus added to the base 2x multiplier per NG+ level
+  const additionalBonuses = [
+    0,     // ngPlus 0 (unused)
+    0.00,  // ngPlus 1
+    0.07,  // ngPlus 2
+    0.10,  // ngPlus 3
+    0.14,  // ngPlus 4
+    0.19,  // ngPlus 5
+    0.25   // ngPlus 6+
+  ];
+
+  const bonus = ngPlus < additionalBonuses.length ? additionalBonuses[ngPlus] : 0.25;
+  const multiplier = 2 + bonus;
+
+  return Math.round(baseHealth * multiplier);
+}
+
+export function getMonsterDamage(monster, ngPlus = 0) {
+  const baseDamage = monster.damage ?? 0;
+  if (ngPlus <= 0) return baseDamage;
+
+  // Multiplier per NG+ level (6+ stays at the last value)
+  const multipliers = [
+    1.00,  // ngPlus 0 (unused)
+    1.37,  // ngPlus 1
+    1.66,  // ngPlus 2  (+0.29)
+    1.78,  // ngPlus 3  (+0.12)
+    1.95,  // ngPlus 4  (+0.16)
+    2.15,  // ngPlus 5  (+0.21)
+    2.40   // ngPlus 6+ (+0.25)
+  ];
+
+  const multiplier = ngPlus < multipliers.length ? multipliers[ngPlus] : multipliers[multipliers.length - 1];
+
+  return Math.round(baseDamage * multiplier);
 }
 
 export function experienceForNextLevel(level) {
@@ -209,9 +257,9 @@ export function buyShopItem(state, content, offerIndex, random = Math.random) {
     return false;
   }
 
-  const maxCount = getMaxItemCount(item);
+  const maxCount = getMaxItemCount(state, item);
   if (getTotalItemCount(state, item.id) >= maxCount) {
-    throw new Error("Maximum of ${maxCount} ${item.name} already held.");
+    throw new Error(`Maximum of ${maxCount} ${item.name} already held.`);
   }
 
   state.currencyBalance = getCurrencyBalance(state, content) - item.value;
@@ -227,8 +275,11 @@ export function buyShopItem(state, content, offerIndex, random = Math.random) {
   return true;
 }
 
-function getMaxItemCount(item) {
-  return (item?.name ?? "").toLowerCase().includes("estus") ? 5 : 9;
+function getMaxItemCount(state, item) {
+  if ((item?.name ?? "").toLowerCase().includes("estus")) {
+    return ESTUS_BASE_COUNT + (state.ngPlus ?? 0);
+  }
+  return ITEM_MAX_COUNT;
 }
 
 function getTotalItemCount(state, lootId) {
@@ -251,9 +302,9 @@ export function addLootToBag(state, content, lootId) {
       return false;
     }
   }
-  const maxCount = getMaxItemCount(item);
+  const maxCount = getMaxItemCount(state, item);
   if (getTotalItemCount(state, item.id) >= maxCount) {
-    throw new Error("Maximum of ${maxCount} ${item.name} already held.");
+    throw new Error(`Maximum of ${maxCount} ${item.name} already held.`);
   }
 
   state.lootInventory[item.id] = (state.lootInventory[item.id] ?? 0) + 1;
@@ -325,6 +376,7 @@ export function createInitialState(content, now = Date.now()) {
     autoHealEnabled: false,
     autoHealThreshold: 100,
     gameOver: false,
+    canLinkFire: false,
     targetMonsterId: null,//firstMonster.id,
     pendingTargetMonsterId: null,
     monsterHp: 0,//firstMonster.health,
@@ -373,7 +425,7 @@ export function parseSavedState(serialized, content) {
   if (targetMonsterId !== null && !target) {
     target = unlockedMonsters(state, content)[0];
     targetMonsterId = target.id;
-    monsterHp = target.health;
+    monsterHp = getMonsterHealth(target, state.ngPlus);
     awaitingMonsterSelection = false;
   }
   let pendingTargetMonsterId = state.pendingTargetMonsterId ?? null;
@@ -391,6 +443,7 @@ export function parseSavedState(serialized, content) {
   const hp = state.hp ?? maxHp;
   const playtime = isNonNegativeNumber(state.playtime) ? state.playtime : 0;
   const ngPlus = Number.isInteger(state.ngPlus) ? state.ngPlus : 0;
+  const targetHealth = target ? getMonsterHealth(target, ngPlus) : 0;
   const gameOver = state.gameOver ?? false;
   if (!Number.isFinite(hp) || hp < 0 || hp > maxHp || typeof gameOver !== "boolean") {
     throw new Error("The saved player health or game-over state is invalid.");
@@ -442,19 +495,19 @@ export function parseSavedState(serialized, content) {
   } else if (awaitingMonsterSelection) {
     recoveryWarnings.push("Repaired saved monster selection.");
     awaitingMonsterSelection = false;
-    monsterHp = target.health;
+    monsterHp = targetHealth;
     pendingTargetMonsterId = null;
   } else if (!isNonNegativeNumber(monsterHp) || monsterHp === 0) {
     recoveryWarnings.push("Repaired saved monster health.");
-    monsterHp = target.health;
-  } else if (monsterHp > target.health) {
+    monsterHp = targetHealth;
+  } else if (monsterHp > targetHealth) {
     recoveryWarnings.push("Adjusted saved monster health to match the current sheet.");
-    monsterHp = target.health;
+    monsterHp = targetHealth;
   }
   // if (!isNonNegativeNumber(monsterHp)
   //     || (noSelectedMonster
   //       ? monsterHp !== 0 || !awaitingMonsterSelection || pendingTargetMonsterId !== null
-  //         : monsterHp > target.health
+  //         : monsterHp > targetHealth
   //         || (monsterHp === 0) !== awaitingMonsterSelection
   //         || (awaitingMonsterSelection && target.type.toLowerCase() !== "boss")
   //         || (awaitingMonsterSelection && (!shopUnlocked || pendingTargetMonsterId !== null)))) {
@@ -552,6 +605,7 @@ export function parseSavedState(serialized, content) {
     autoHealEnabled,
     autoHealThreshold,
     gameOver,
+    canLinkFire: Boolean(state.canLinkFire),
     targetMonsterId,
     pendingTargetMonsterId,
     monsterHp,
@@ -803,9 +857,9 @@ export function useLoot(state, content, lootId, random = Math.random) {
         const nextTarget = content.monsters.find((monster) => monster.id === state.pendingTargetMonsterId);
         state.targetMonsterId = nextTarget.id;
         state.pendingTargetMonsterId = null;
-        state.monsterHp = nextTarget.health;
+        state.monsterHp = getMonsterHealth(nextTarget, state.ngPlus);
       } else {
-        state.monsterHp = target.health;
+        state.monsterHp = getMonsterHealth(target, state.ngPlus);
       }
     }
   }
@@ -940,7 +994,7 @@ export function selectMonster(state, content, monsterId) {
 
   if (state.awaitingMonsterSelection) {
     state.targetMonsterId = monster.id;
-    state.monsterHp = monster.health;
+    state.monsterHp = getMonsterHealth(monster, state.ngPlus);
     state.awaitingMonsterSelection = false;
     state.pendingTargetMonsterId = null;
     state.activeTab = "fight";
@@ -972,12 +1026,14 @@ function grantKillRewards(state, content, monster, random = Math.random) {
   state.kills[monster.id] = (state.kills[monster.id] ?? 0) + 1;
   grantExperience(state, Math.max(1, Math.floor(monster.xp * stats.xpMultiplier)));
 
-  // Grant souls from the monster's Souls column
-  const soulAmount = Number(monster.souls) || 0;
-  if (soulAmount > 0) {
-    state.currencyBalance = (state.currencyBalance ?? 0) + soulAmount;
+  // Grant souls from the monster's Souls column with multiplier
+  // Souls multiplier scales with NG+ level (NG+0 = 1x, NG+4 = 4x, etc.)
+  const soulMultiplier = Math.max(1, 1 + (state.ngPlus ?? 0));
+  const baseSoulAmount = Number(monster.souls) || 0;
+  if (baseSoulAmount > 0) {
+    state.currencyBalance = (state.currencyBalance ?? 0) + (baseSoulAmount * soulMultiplier);
   }
-
+  
   const lootChance = monster.lootChance ?? 100;
   
   const rawLootNames = monster.lootNames ?? monster.lootName ?? [];
@@ -1000,7 +1056,7 @@ function grantKillRewards(state, content, monster, random = Math.random) {
     for (let i = 0; i < lootNames.length; i++) {
       const name = lootNames[i];
       const chance = Number.isFinite(lootChances[i]) ? lootChances[i] : (lootChances[0] ?? 100);
-      const roll = Math.floor(random() * 101);
+      const roll = Math.floor(random * 100);
       const dropped = chance >= 100 || roll < chance;
       lastRoll = roll;
 
@@ -1010,7 +1066,7 @@ function grantKillRewards(state, content, monster, random = Math.random) {
           const isUnique = (item.notes ?? "").toLowerCase().includes("unique");
           const totalOwned = (state.lootInventory[item.id] ?? 0) + (Object.values(state.gear).includes(item.id) ? 1 : 0);
 
-          const maxCount = getMaxItemCount(item);
+          const maxCount = getMaxItemCount(state, item);
           if (isUnique ? totalOwned === 0 : getTotalItemCount(state, item.id) < maxCount) {
             state.lootInventory[item.id] = (state.lootInventory[item.id] ?? 0) + 1;
             markLootNew(state, item.id);
@@ -1045,7 +1101,7 @@ function grantKillRewards(state, content, monster, random = Math.random) {
     ?? (monster.materialName ? [monster.materialName] : []);
 
   const hasMaterialDrop = materialChance >= 100
-    || (materialCount > 0 && materialNames.length > 0 && Math.floor(random() * 101) < materialChance);
+    || (materialCount > 0 && materialNames.length > 0 && Math.floor(random * 100) < materialChance);
   
   if (materialCount > 0 && hasMaterialDrop) {
     const bossMaterials = [];
@@ -1062,20 +1118,14 @@ function grantKillRewards(state, content, monster, random = Math.random) {
       if (isBoss) {
         bossMaterials.push(item);
       } else {
-        // Direct "Soul" materials directly to main currency balance
-        if (item.name.trim().toLowerCase() === "soul") {
-          const soulValue = item.value > 0 ? item.value : 1;
-          state.currencyBalance = (state.currencyBalance ?? 0) + (materialCount * soulValue);
-        } else {
-          const currentCount = state.currencyInventory[item.id] ?? 0;
-          if (currentCount < 99) {
-            // If it's an upgrade item, limit the drop amount to 1 max per drop event
-            const effectiveCount = isUpgrade ? 1 : materialCount;
-            const countToAdd = isUnique ? Math.min(1, Math.max(0, 1 - currentCount)) : effectiveCount;
-            
-            if (countToAdd > 0) {
-              state.currencyInventory[item.id] = currentCount + countToAdd;
-            }
+      const currentCount = state.currencyInventory[item.id] ?? 0;
+        if (currentCount < MAX_MATERIALS) {
+          // If it's an upgrade item, limit the drop amount to 1 max per drop event
+          const effectiveCount = isUpgrade ? 1 : materialCount;
+          const countToAdd = isUnique ? Math.min(1, Math.max(0, 1 - currentCount)) : effectiveCount;
+          
+          if (countToAdd > 0) {
+            state.currencyInventory[item.id] = currentCount + countToAdd;
           }
         }
       }
@@ -1117,7 +1167,7 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
   {
     // Reload the monster and skip attacking on this tick so it starts at full health
     if (state.monsterHp === -1) {
-      state.monsterHp = target.health;
+      state.monsterHp = getMonsterHealth(target, state.ngPlus);
       continue; 
     }
 
@@ -1169,9 +1219,10 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
       break; // Stop further attacks so the 0 HP state is displayed
     }
 
-    const incomingDamage = state.godMode
-      ? 0
-      : Math.max(0, target.damage - stats.defense - state.nextHitDefense);
+    const incomingDamage =
+      state.godMode ? 0
+      : Math.max(0, getMonsterDamage(target, state.ngPlus) - stats.defense - state.nextHitDefense);
+      //: Math.max(0, target.damage - stats.defense - state.nextHitDefense);
     
     const defensePercent = Math.min(100, stats.defensePercent + (state.nextHitDefensePercent ?? 0));
     const reducedDamage = Math.max(0, incomingDamage * (1 - defensePercent / 100));
