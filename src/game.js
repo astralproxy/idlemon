@@ -288,6 +288,10 @@ function getTotalItemCount(state, lootId) {
   return bagCount + equippedCount;
 }
 
+export function isItemCountMaxed(state, item) {
+  return getTotalItemCount(state, item.id) >= getMaxItemCount(state, item);
+}
+
 export function addLootToBag(state, content, lootId) {
   const item = content.loot.find((loot) => loot.id === lootId);
   if (!item) {
