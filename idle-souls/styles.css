@@ -691,8 +691,33 @@ h3 {
 }
 
 .quick-item-button {
-  flex: 0 0 auto;
-  font-size: 0.82rem;
+  flex: 0 0 110px;
+  width: 88px;
+  min-height: 40px;
+  font-size: 0.6rem;
+  overflow-wrap: anywhere;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  line-height: 1.0;
+  text-align: center;
+}
+
+.quick-item-button.quick-item-flash {
+  box-shadow: inset 0 0 0 2px #ffd400;
+}
+
+.quick-item-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quick-item-count {
+  white-space: nowrap;
 }
 
 #monster-reward {
@@ -851,6 +876,7 @@ h3 {
 
 .revive-prompt p {
   color: var(--muted);
+  white-space: pre-line;
 }
 
 .section-heading {
@@ -978,6 +1004,18 @@ button:focus-visible {
   color: var(--accent);
   font-size: 0.74rem;
   font-weight: 750;
+  white-space: nowrap;
+}
+
+.badge-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.badge-max {
+  font-size: 0.68rem;
   white-space: nowrap;
 }
 
@@ -1163,6 +1201,18 @@ button:focus-visible {
 
 .list-item.loot-item .badge {
   justify-self: center;
+}
+
+.loot-item .skill-copy > h3 {
+  margin-bottom: 0;
+  line-height: 1.2;
+}
+
+.loot-item .skill-copy > p.item-description,
+.gear-equipped-item .item-description {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
 }
 
 .item-details {

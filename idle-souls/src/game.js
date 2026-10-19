@@ -275,7 +275,7 @@ export function buyShopItem(state, content, offerIndex, random = Math.random) {
   return true;
 }
 
-function getMaxItemCount(state, item) {
+export function getMaxItemCount(state, item) {
   if ((item?.name ?? "").toLowerCase().includes("estus")) {
     return ESTUS_BASE_COUNT + (state.ngPlus ?? 0);
   }
@@ -298,7 +298,8 @@ export function addLootToBag(state, content, lootId) {
     throw new Error("That loot item is not available.");
   }
 
-  // Cannot obtain another unique item if already carried or equipped
+  // Cannot obtain another unique item if already carried or equipped.
+  // This also applies to NG+, but if you sold it you can get the loot again.
   const isUnique = (item.notes ?? "").toLowerCase().includes("unique");
   if (isUnique) {
     const totalOwned = (state.lootInventory[lootId] ?? 0) + (Object.values(state.gear).includes(lootId) ? 1 : 0);
@@ -902,8 +903,12 @@ export function canUseLoot(state, content, lootId) {
     return !state.gameOver && state.hp < getPlayerMaxHp(state.level);
   }
   if (skill.effect === "damage_flat") {
-    const target = content.monsters.find((monster) => monster.id === state.targetMonsterId);
-    return Boolean(target);
+    const isMonsterActive = Boolean(state.targetMonsterId) && !state.awaitingMonsterSelection && !state.gameOver;
+    if (isMonsterActive)
+    {
+      const target = content.monsters.find((monster) => monster.id === state.targetMonsterId);
+      return Boolean(target);
+    }
   }
   
   return skill.effect === "defense_flat";
