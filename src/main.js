@@ -14,6 +14,7 @@ import {
   experienceForNextLevel,
   getPlayerMaxHp,
   getPlayerStats,
+  getMaxItemCount,
   isItemCountMaxed,
   isTwoHandEquipped,
   MAX_OFFLINE_SECONDS,
@@ -211,6 +212,8 @@ const WEAPON_SORT_KEY = "idlemon-weapon-sort";
 const ARMOR_SORT_KEY = "idlemon-armor-sort";
 const GAME_SPEED_KEY = "idlemon-game-speed";
 const GAME_SPEEDS = [1, 2, 5];
+const KEY_NAME_REGEX = /\bkey\b/i;
+
 let content;
 let state;
 let lastTickAt;
@@ -227,6 +230,7 @@ let resetting = false;
 let shopTooltipTimeout;
 let isMonsterSelectOpen = false;
 let lastKnownActiveMonsterId = null;
+let quickFlashItemId = null;
 let statusLog = [];
 
 function showError(message) {
@@ -344,6 +348,29 @@ function createTextElement(tag, className, text) {
   return element;
 }
 
+const shortenSkillTerms = (text) => text
+  .replace(/\bDefend\b/gi, "DEF")
+  .replace(/\bAttack\b/gi, "ATK");
+
+const getMaterialGroup = (item) => {
+  const uses = (item.uses ?? item.use ?? "").toLowerCase().split(/[\s,]+/);
+  if ((item.value ?? 0) > 0) return 0;
+  if (uses.includes("special")) return 1;
+  if (KEY_NAME_REGEX.test(item.name)) return 2;
+  return 4;
+};
+
+const sortMaterials = (a, b) => {
+  const gA = getMaterialGroup(a);
+  const gB = getMaterialGroup(b);
+  if (gA !== gB) return gA - gB;
+  if (gA === 0) {
+    const diff = (a.value ?? 0) - (b.value ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return a.name.localeCompare(b.name);
+};
+
 function lootEffectText(item) {
   const skills = item.skills?.length ? item.skills : (item.skill ? [item.skill] : []);
   if (skills.length === 0) {
@@ -361,6 +388,8 @@ function lootEffectText(item) {
 }
 
 function monsterDisplayName(monster) {
+  if (!monster) return "";
+
   if (monster.type.toLowerCase() === "boss") {
     return `[BOSS] ${monster.name}`;
   } else if (monster.type.toLowerCase() === "phantom") {
@@ -841,10 +870,12 @@ function render() {
     .filter((monster) => monster.type.toLowerCase() === "boss")
     .reduce((total, boss) => total + (state.kills[boss.id] ?? 0), 0);
 
+  const killedByLine = target !== undefined ? `Killed by: ${monsterDisplayName(target)}` : '';
   elements.gameOverStats.textContent =
-    `NG+ ${numberFormat.format(state.ngPlus)}
+    `${killedByLine}
+    \nNG+ ${numberFormat.format(state.ngPlus)}
     Player level: ${numberFormat.format(state.level)}
-    Total Playtime: ${formatPlaytime(state.playtime ?? 0)}
+    Playtime: ${formatPlaytime(state.playtime ?? 0)}
     \nSouls lost: ${numberFormat.format(soulsLost)}
     \nEnemies defeated: ${numberFormat.format(totalKills)}
     Bosses defeated: ${numberFormat.format(totalBossesDefeated)}`;
@@ -859,7 +890,9 @@ function render() {
   elements.revivePrompt.hidden = !reviveItem;
   elements.startOver.hidden = Boolean(reviveItem);
   if (reviveItem) {
-    elements.reviveMessage.textContent = `Have you lost your nerve? ... No? Then go along. No one's stopping you.`;
+    elements.reviveMessage.textContent = `Have you lost your nerve?
+      ... No? Then go along.
+      No one's stopping you.`;
     elements.revivePlayer.textContent = `Use [${reviveItem.name}] to Revive`;
     elements.revivePlayer.dataset.lootId = reviveItem.id;
   }
@@ -879,7 +912,7 @@ function render() {
     if (item) {
       itemColumn.append(
         createTextElement("span", `item-title loot-rarity rarity-${item.rarity.toLowerCase()}`, item.name),
-        createTextElement("span", "muted item-description", `${lootEffectText(item)}`),
+        createTextElement("span", "muted item-description", shortenSkillTerms(lootEffectText(item))),
       );
       const button = document.createElement("button");
       button.type = "button";
@@ -927,7 +960,7 @@ function render() {
     const effA = getEffect(a);
     const effB = getEffect(b);
 
-    const rank = (eff) => (eff === "heal" ? 1 : eff === "damage_flat" ? 2 : 3);
+    const rank = (eff) => (eff === "flee" ? 1 : eff === "damage_flat" ? 2 : eff === "heal" ? 3 : 4);
     const rA = rank(effA);
     const rB = rank(effB);
 
@@ -944,11 +977,32 @@ function render() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "button secondary quick-item-button";
-    button.textContent = `${item.name} ×${count}`;
+    button.dataset.itemId = String(item.id);
+    if (String(item.id) === quickFlashItemId) button.classList.add("quick-item-flash");
+    const maxItemCnt = getMaxItemCount(state, item);
+    //button.textContent = `${item.name} ×${count} (max: ${maxItemCnt})`;
+    const nameEl = document.createElement("span");
+      nameEl.className = "quick-item-name";
+      nameEl.textContent = item.name;
+    const countEl = document.createElement("span");
+      countEl.className = "quick-item-count";
+      countEl.textContent = `×${count} (max: ${maxItemCnt})`;
+    button.replaceChildren(nameEl, countEl);
+
     button.title = `${item.name}: ${lootEffectText(item)}`;
     button.setAttribute("aria-label", `Use ${item.name}, ${count} in bag. ${lootEffectText(item)}.`);
     button.disabled = !canUseLoot(state, content, item.id);
     button.addEventListener("click", () => {
+      // briefly highlight the button to show it was used
+      quickFlashItemId = String(item.id);
+      button.classList.add("quick-item-flash");
+      setTimeout(() => {
+        quickFlashItemId = null;
+        for (const el of elements.quickItemsList.children) {
+          if (el.dataset.itemId === String(item.id)) el.classList.remove("quick-item-flash");
+        }
+      }, 100);
+
       try {
         if (!useLoot(state, content, item.id)) {
           setStatus(`Cannot use ${item.name} right now.`);
@@ -985,12 +1039,12 @@ function render() {
     const titleSpan = createTextElement("span", `item-title loot-rarity rarity-${item.rarity.toLowerCase()}`, item.name);
     
     // Combine slot and effect into one descriptive string
-    const detailsText = `(${slotLabel}) - ${lootEffectText(item)}`;
+    const detailsText = `[${slotLabel}] - ${shortenSkillTerms(lootEffectText(item))}`;
 
     const heading = createTextElement("h3", "", "");
-    heading.append(titleSpan, document.createElement("br"), createTextElement("span", "muted item-description", detailsText));
-
-    textContainer.append(heading);
+    heading.append(titleSpan);
+    const description = createTextElement("p", "muted item-description", detailsText);
+    textContainer.append(heading, description);
     
     const button = document.createElement("button");
     button.type = "button";
@@ -1080,7 +1134,17 @@ function render() {
 
       row.append(textContainer, badge, actions);
     } else {
-      row.append(textContainer, badge, button);
+      if (item.slot === "") {
+        const countStack = createTextElement("div", "badge-stack", "");
+        const maxItemCnt = getMaxItemCount(state, item);
+        countStack.append(
+          badge,
+          createTextElement("span", "muted badge-max", `max: ${maxItemCnt}`)
+        );
+        row.append(textContainer, countStack, button);
+      } else {
+        row.append(textContainer, badge, button);
+      }
     }
 
     return row;
@@ -1192,7 +1256,8 @@ function render() {
 
   renderList(
     elements.bagMaterialsList,
-    content.materials.filter((item) => (state.currencyInventory[item.id] ?? 0) > 0),
+    content.materials.filter((item) => (state.currencyInventory[item.id] ?? 0) > 0)
+    .sort(sortMaterials),
     "No materials in your bag.",
     (item) => {
       const row = document.createElement("article");
@@ -1210,7 +1275,11 @@ function render() {
 
       // Apply text highlight if notes === "Boss"
       const titleClasses = `item-title${isBossMaterial ? " boss-material-title" : ""}`;
-      const titleSpan = createTextElement("strong", titleClasses, item.name);
+      const titleSpan = createTextElement(
+        "strong",
+        titleClasses,
+        KEY_NAME_REGEX.test(item.name) ? `${item.name} 🗝️` : item.name
+      );
       textContainer.append(titleSpan);
       
       // Add extra text to materials in shop as a warning
@@ -1276,7 +1345,7 @@ function render() {
                 // Title and slot together on the first line
                 const titleSpan = createTextElement("span", `item-title loot-rarity rarity-${lootItem.rarity.toLowerCase()}`, lootItem.name);
                 
-                const detailsText = `(${slotLabel}) - ${lootEffectText(lootItem)}`;
+                const detailsText = `[${slotLabel}] - ${lootEffectText(lootItem)}`;
                 const detailsSpan = createTextElement("span", "muted item-description", detailsText);
                 detailsSpan.style.fontWeight = "normal";
 
@@ -1387,7 +1456,8 @@ function renderShop() {
     card.className = "panel shop-item";
     const details = createTextElement("div", "shop-item-details", "");
     const title = createTextElement("h3", `loot-rarity rarity-${item.rarity.toLowerCase()}`, item.name);
-    title.append(createTextElement("span", "shop-owned-count", ` (Owned: ${numberFormat.format(state.lootInventory[item.id] ?? 0)})`));
+    const maxItemCnt = getMaxItemCount(state, item);
+    title.append(createTextElement("span", "shop-owned-count", ` (Owned: ${numberFormat.format(state.lootInventory[item.id] ?? 0)} / ${maxItemCnt})`));
     details.append(
       title,
       createTextElement("p", "muted", `${item.slot ? `${item.slot}` : "Consumable"} · ${lootEffectText(item)}`),
