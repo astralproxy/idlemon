@@ -2,6 +2,10 @@ import { DEBUG_ENABLED, SHEET_CSV_URLS } from "../config.js";
 import { loadGameContent, RARITY_ORDER } from "./content.js";
 
 import {
+  WEAPON_SLOTS,
+  getItemEffects,
+  getMaxUpgradeLevel, getUpgradeCost, isUpgradable, isWeaponItem, upgradeLoot,
+  isDragonItem, isDragonMaterial,
   advanceGame,
   addLootToBag,
   buyShopItem,
@@ -214,6 +218,9 @@ const GAME_SPEED_KEY = "idlemon-game-speed";
 const GAME_SPEEDS = [1, 2, 5];
 const KEY_NAME_REGEX = /\bkey\b/i;
 
+const WEAPON_SLOT_ORDER = ["r-hand", "l-hand", "two-hand"];
+const ARMOR_SLOT_ORDER = ["ring", "head", "chest", "arms", "legs"];
+
 let content;
 let state;
 let lastTickAt;
@@ -232,6 +239,66 @@ let isMonsterSelectOpen = false;
 let lastKnownActiveMonsterId = null;
 let quickFlashItemId = null;
 let statusLog = [];
+
+function sortByRarityDesc(a, b) {
+  const rankA = RARITY_ORDER.indexOf(a.rarity.toLowerCase());
+  const rankB = RARITY_ORDER.indexOf(b.rarity.toLowerCase());
+  return rankB - rankA;
+}
+
+function sortByEffectDesc(a, b) {
+  const getPrimaryEff = (item) => {
+    if (Array.isArray(item.skillEffects) && item.skillEffects.length > 0) {
+      return item.skillEffects[0];
+    }
+    return {
+      effectValue: item.effectValue ?? 0,
+      effectIsPercentage: item.effectIsPercentage ?? false,
+    };
+  };
+
+  const effA = getPrimaryEff(a);
+  const effB = getPrimaryEff(b);
+  const isPctA = Boolean(effA.effectIsPercentage);
+  const isPctB = Boolean(effB.effectIsPercentage);
+
+  // Flat (integer) values take precedence over percentage values
+  if (isPctA !== isPctB) {
+    return isPctA ? 1 : -1;
+  }
+  return (effB.effectValue ?? 0) - (effA.effectValue ?? 0);
+}
+
+function sortWeapons(a, b) {
+  const sortType = state.weaponSort || "strength";
+  if (sortType === "type") {
+    const slotA = WEAPON_SLOT_ORDER.indexOf(a.slot.toLowerCase());
+    const slotB = WEAPON_SLOT_ORDER.indexOf(b.slot.toLowerCase());
+    const indexA = slotA === -1 ? 999 : slotA;
+    const indexB = slotB === -1 ? 999 : slotB;
+    if (indexA !== indexB) {
+      return indexA - indexB;
+    }
+  }
+  if (sortType === "rarity") {
+    return sortByRarityDesc(a, b);
+  }
+  return sortByEffectDesc(a, b);
+}
+
+function sortArmor(a, b) {
+  const sortType = state.armorSort || "type";
+  if (sortType === "type") {
+    const slotA = ARMOR_SLOT_ORDER.indexOf(a.slot.toLowerCase());
+    const slotB = ARMOR_SLOT_ORDER.indexOf(b.slot.toLowerCase());
+    const indexA = slotA === -1 ? 999 : slotA;
+    const indexB = slotB === -1 ? 999 : slotB;
+    if (indexA !== indexB) {
+      return indexA - indexB;
+    }
+  }
+  return sortByEffectDesc(a, b);
+}
 
 function showError(message) {
   elements.game.hidden = true;
@@ -371,20 +438,25 @@ const sortMaterials = (a, b) => {
   return a.name.localeCompare(b.name);
 };
 
-function lootEffectText(item) {
+function lootEffectText(item, st = state) {
   const skills = item.skills?.length ? item.skills : (item.skill ? [item.skill] : []);
   if (skills.length === 0) {
     return "No associated skill";
   }
-
+  const effects = getItemEffects(st, item);
+  const formatter = item.slot === "" ? numberFormat : numberFormatDecimal;
   return skills.map((skName, idx) => {
-    const eff = item.skillEffects?.[idx] ?? item.skillEffects?.[0] ?? { effectValue: item.effectValue, effectIsPercentage: item.effectIsPercentage };
-    const formatter = item.slot === "" ? numberFormat : numberFormatDecimal;
+    const eff = effects[idx];
     const effectValueStr = eff.effectIsPercentage
       ? `${formatter.format(eff.effectValue)}%`
       : formatter.format(eff.effectValue);
     return `${skName} (${effectValueStr})`;
   }).join(", ");
+}
+
+function itemDisplayName(item) {
+  const lvl = state.upgrades?.[item.id] ?? 0;
+  return lvl > 0 ? `${item.name} +${lvl}` : item.name;
 }
 
 function monsterDisplayName(monster) {
@@ -911,7 +983,7 @@ function render() {
     const itemColumn = createTextElement("div", "gear-equipped-item", "");
     if (item) {
       itemColumn.append(
-        createTextElement("span", `item-title loot-rarity rarity-${item.rarity.toLowerCase()}`, item.name),
+        createTextElement("span", `item-title loot-rarity rarity-${item.rarity.toLowerCase()}`, itemDisplayName(item)),
         createTextElement("span", "muted item-description", shortenSkillTerms(lootEffectText(item))),
       );
       const button = document.createElement("button");
@@ -1036,7 +1108,7 @@ function render() {
     const isShop = state.activeTab === "shop";
     
     const slotLabel = item.slot ? item.slot : "Consumable";
-    const titleSpan = createTextElement("span", `item-title loot-rarity rarity-${item.rarity.toLowerCase()}`, item.name);
+    const titleSpan = createTextElement("span", `item-title loot-rarity rarity-${item.rarity.toLowerCase()}`, itemDisplayName(item));
     
     // Combine slot and effect into one descriptive string
     const detailsText = `[${slotLabel}] - ${shortenSkillTerms(lootEffectText(item))}`;
@@ -1153,40 +1225,6 @@ function render() {
   // indicate new items
   updateBagTabIndicators();
 
-  // Sort by rarity
-  const sortByRarityDesc = (a, b) => {
-    const rankA = RARITY_ORDER.indexOf(a.rarity.toLowerCase());
-    const rankB = RARITY_ORDER.indexOf(b.rarity.toLowerCase());
-    return rankB - rankA;
-  };
-
-  // Sort by skill effect (aka its strength)
-  const sortByEffectDesc = (a, b) => {
-    const getPrimaryEff = (item) => {
-      if (Array.isArray(item.skillEffects) && item.skillEffects.length > 0) {
-        return item.skillEffects[0];
-      }
-      return {
-        effectValue: item.effectValue ?? 0,
-        effectIsPercentage: item.effectIsPercentage ?? false
-      };
-    };
-
-    const effA = getPrimaryEff(a);
-    const effB = getPrimaryEff(b);
-
-    const isPctA = Boolean(effA.effectIsPercentage);
-    const isPctB = Boolean(effB.effectIsPercentage);
-
-    // Flat (integer) values take precedence over percentage values
-    if (isPctA !== isPctB) {
-      return isPctA ? 1 : -1;
-    }
-
-    // Within the same type, sort by effect value descending
-    return (effB.effectValue ?? 0) - (effA.effectValue ?? 0);
-  };
-
   // Items, sorted alphabetically
   renderList(
     elements.bagItemsList,
@@ -1201,7 +1239,6 @@ function render() {
 
   // Weapons sorting based on setting
   const weaponSortType = state.weaponSort || "strength";
-  const weaponSlotOrder = ["r-hand", "l-hand", "two-hand"];
   const sortWeapons = (a, b) => {
     if (weaponSortType === "type") {
       const slotA = weaponSlotOrder.indexOf(a.slot.toLowerCase());
@@ -1222,21 +1259,19 @@ function render() {
     return sortByEffectDesc(a, b);
   };
 
-  const weaponSlots = new Set(["r-hand", "two-hand", "l-hand"]);
   renderList(
     elements.bagWeaponsList,
-    bagLoot.filter((item) => weaponSlots.has(item.slot.toLowerCase())).sort(sortWeapons),
+    bagLoot.filter((item) => WEAPON_SLOTS.has(item.slot.toLowerCase())).sort(sortWeapons),
     "No weapons in your bag.",
     renderBagItem,
   );
 
   // Armor sorting based on setting
   const armorSortType = state.armorSort || "type";
-  const armorSlotOrder = ["ring", "head", "chest", "arms", "legs"];  
   const sortArmor = (a, b) => {
     if (armorSortType === "type") {
-      const slotA = armorSlotOrder.indexOf(a.slot.toLowerCase());
-      const slotB = armorSlotOrder.indexOf(b.slot.toLowerCase());
+      const slotA = ARMOR_SLOT_ORDER.indexOf(a.slot.toLowerCase());
+      const slotB = ARMOR_SLOT_ORDER.indexOf(b.slot.toLowerCase());
       const indexA = slotA === -1 ? 999 : slotA;
       const indexB = slotB === -1 ? 999 : slotB;
 
@@ -1249,7 +1284,7 @@ function render() {
 
   renderList(
     elements.bagArmorList,
-    bagLoot.filter((item) => item.slot !== "" && !weaponSlots.has(item.slot.toLowerCase())).sort(sortArmor),
+    bagLoot.filter((item) => item.slot !== "" && !WEAPON_SLOTS.has(item.slot.toLowerCase())).sort(sortArmor),
     "No armor in your bag.",
     renderBagItem,
   );
@@ -1270,6 +1305,7 @@ function render() {
       const isCraftMaterial = materialUses.includes("craft");
       const isSpecialMaterial = materialUses.includes("special");
       const isBossMaterial = (item.notes ?? "").trim().toLowerCase() === "boss";
+      const isUpgradeMaterial = (item.notes ?? "").trim().toLowerCase() === "upgrade";
 
       const textContainer = createTextElement("div", "skill-copy", "");
 
@@ -1310,14 +1346,20 @@ function render() {
         const craftButton = document.createElement("button");
         craftButton.type = "button";
         craftButton.className = "button secondary";
-        craftButton.textContent = "Craft";
-        
+        craftButton.textContent = isUpgradeMaterial ? "Upgrade" : "Craft";
+
         craftButton.addEventListener("click", () => {
+          if (isUpgradeMaterial) {
+            openUpgradeDialog(item);
+            return;
+          }
           if (!elements.craftDialog) {
             console.error("craftDialog element not found in DOM!");
             return;
           }
 
+          craftMode = "craft";
+          elements.craftDialogMessage.textContent = "Select an item to craft:";
           activeCraftItem = item;
           selectedCraftLootId = null;
 
@@ -1345,7 +1387,7 @@ function render() {
                 // Title and slot together on the first line
                 const titleSpan = createTextElement("span", `item-title loot-rarity rarity-${lootItem.rarity.toLowerCase()}`, lootItem.name);
                 
-                const detailsText = `[${slotLabel}] - ${lootEffectText(lootItem)}`;
+                const detailsText = `[${slotLabel}] - ${shortenSkillTerms(lootEffectText(lootItem))}`;
                 const detailsSpan = createTextElement("span", "muted item-description", detailsText);
                 detailsSpan.style.fontWeight = "normal";
 
@@ -1384,6 +1426,8 @@ function render() {
             }
           }
 
+          elements.craftDialog.returnValue = "";
+          craftConfirmed = false;
           elements.craftDialog.showModal();
         });
         actions.append(craftButton);
@@ -1501,7 +1545,111 @@ function renderShop() {
 let activeCraftItem = null;
 let selectedCraftLootId = null;
 
+let craftMode = "craft";
+let craftConfirmed = false;
+elements.craftConfirmBtn.addEventListener("click", () => {
+  craftConfirmed = true;
+});
+
+function openUpgradeDialog(material) {
+  craftMode = "upgrade";
+  elements.craftDialog.classList.add("upgrade-dialog")
+  activeCraftItem = material;
+  selectedCraftLootId = null;
+
+  const matInventory = state.currencyInventory[material.id] ?? 0;
+  elements.craftDialogTitle.textContent = `Upgrading - ${material.name}: (${matInventory})`;
+  elements.craftDialogMessage.textContent = `Select item to upgrade. Upgrading increases primary stat by 10% per level.`;
+  elements.craftOptionsList.replaceChildren();
+  elements.craftConfirmBtn.disabled = true;
+
+  const dragonMaterial = isDragonMaterial(material);
+  const candidates = content.loot.filter((l) => isUpgradable(l)
+    && isDragonItem(l) === dragonMaterial
+    && ((state.lootInventory[l.id] ?? 0) > 0 || Object.values(state.gear ?? {}).includes(l.id)));
+
+  const owned = [
+    ...candidates.filter((l) => isWeaponItem(l)).sort(sortWeapons),
+    ...candidates.filter((l) => !isWeaponItem(l)).sort(sortArmor),
+  ];
+
+  for (const lootItem of owned) {
+    const level = state.upgrades?.[lootItem.id] ?? 0;
+    const maxLevel = getMaxUpgradeLevel(lootItem);
+    const isMax = level >= maxLevel;
+    const cost = isMax ? 0 : getUpgradeCost(lootItem, level + 1);
+    const canAfford = matInventory >= cost;
+
+    const optionCard = document.createElement("button");
+    optionCard.type = "button";
+    optionCard.className = "list-item loot-item crafted-loot-item";
+    optionCard.disabled = isMax || !canAfford;
+
+    const titleSpan = createTextElement("span", `item-title loot-rarity rarity-${lootItem.rarity.toLowerCase()}`, itemDisplayName(lootItem));
+    const detailsSpan = createTextElement("span", "muted item-description",
+      `[${lootItem.slot}] - ${shortenSkillTerms(lootEffectText(lootItem))}`);
+    detailsSpan.style.fontWeight = "normal";
+    const heading = createTextElement("strong", "", "");
+    heading.append(titleSpan, document.createElement("br"), detailsSpan);
+    if (!isMax) {
+      const nextSpan = createTextElement("span", "muted item-description",
+        `Next +${level + 1}: ${shortenSkillTerms(lootEffectText(lootItem, { upgrades: { [lootItem.id]: level + 1 } }))}`);
+      nextSpan.style.fontWeight = "normal";
+      heading.append(document.createElement("br"), nextSpan);
+    }
+
+    const costLabel = createTextElement("span", "muted", isMax ? "MAX" : "Cost:");
+    const costNum = createTextElement("span", "muted", isMax ? `+${maxLevel}` : String(cost));
+    costNum.style.color = "var(--accent)";
+    const costContainer = createTextElement("div", "", "");
+    costContainer.style.display = "flex";
+    costContainer.style.flexDirection = "column";
+    costContainer.style.alignItems = "flex-end";
+    costContainer.append(costLabel, costNum);
+
+    optionCard.style.display = "grid";
+    optionCard.style.gridTemplateColumns = "1fr 60px";
+    optionCard.style.alignItems = "center";
+    optionCard.style.gap = "12px";
+    optionCard.append(heading, costContainer);
+
+    optionCard.addEventListener("click", () => {
+      elements.craftOptionsList.querySelectorAll(".list-item").forEach((el) => el.classList.remove("is-new-loot"));
+      optionCard.classList.add("is-new-loot");
+      selectedCraftLootId = lootItem.id;
+      elements.craftConfirmBtn.disabled = false;
+    });
+    elements.craftOptionsList.append(optionCard);
+  }
+
+  elements.craftDialog.returnValue = "";
+  craftConfirmed = false;
+  elements.craftDialog.showModal();
+}
+
 elements.craftDialog.addEventListener("close", () => {
+  const wasUpgrade = craftMode === "upgrade";
+  elements.craftDialog.classList.remove("upgrade-dialog");
+
+  if (wasUpgrade) {
+    if (craftConfirmed && selectedCraftLootId && activeCraftItem) {
+      try {
+        const target = content.loot.find((l) => l.id === selectedCraftLootId);
+        const newLevel = upgradeLoot(state, content, selectedCraftLootId, activeCraftItem.id);
+        setStatus(`${target.name} upgraded to +${newLevel}!`);
+        render();
+        saveState();
+      } catch (error) {
+        setStatus(`Could not upgrade item: ${error.message}`);
+      }
+    }
+    craftMode = "craft";
+    craftConfirmed = false;
+    activeCraftItem = null;
+    selectedCraftLootId = null;
+    return;
+  }
+
   if (elements.craftDialog.returnValue === "craft" && selectedCraftLootId && activeCraftItem) {
     try {
       if ((state.currencyInventory[activeCraftItem.id] ?? 0) < 1) {
@@ -1522,8 +1670,10 @@ elements.craftDialog.addEventListener("close", () => {
       setStatus(`Could not craft item: ${error.message}`);
     }
   }
+
   activeCraftItem = null;
   selectedCraftLootId = null;
+  craftMode = "craft";
 });
 
 elements.refreshShop.addEventListener("click", () => {
@@ -1647,18 +1797,17 @@ function renderCheatLoot() {
   elements.cheatLootList.append(removeContainer);
 
   // --- GRANT ITEM DROPDOWNS (Items, Weapons, Armor, Materials) ---
-  const weaponSlots = new Set(["r-hand", "two-hand", "l-hand"]);
   
   const consumableItems = content.loot
     .filter((item) => item.slot === "")
     .sort((a, b) => a.name.localeCompare(b.name));
     
   const weaponItems = content.loot
-    .filter((item) => weaponSlots.has(item.slot.toLowerCase()))
+    .filter((item) => WEAPON_SLOTS.has(item.slot.toLowerCase()))
     .sort((a, b) => a.name.localeCompare(b.name));
     
   const armorItems = content.loot
-    .filter((item) => item.slot !== "" && !weaponSlots.has(item.slot.toLowerCase()))
+    .filter((item) => item.slot !== "" && !WEAPON_SLOTS.has(item.slot.toLowerCase()))
     .sort((a, b) => a.name.localeCompare(b.name));
     
   const materialItems = [...content.materials]
@@ -1759,17 +1908,16 @@ function selectBagTab(tab) {
 
   // Clear new loot tags when switching to another tab
   if (previousTab !== tab) {
-    const weaponSlots = new Set(["r-hand", "two-hand", "l-hand"]);
 
     if (previousTab === "weapons" && state && content) {
       state.newLootIds = (state.newLootIds ?? []).filter((id) => {
         const item = content.loot.find((l) => l.id === id);
-        return !item || !weaponSlots.has(item.slot.toLowerCase());
+        return !item || !WEAPON_SLOTS.has(item.slot.toLowerCase());
       });
     } else if (previousTab === "armor" && state && content) {
       state.newLootIds = (state.newLootIds ?? []).filter((id) => {
         const item = content.loot.find((l) => l.id === id);
-        return !item || item.slot === "" || weaponSlots.has(item.slot.toLowerCase());
+        return !item || item.slot === "" || WEAPON_SLOTS.has(item.slot.toLowerCase());
       });
     } else if (previousTab === "materials" && state && content) {
       state.seenMaterials = state.seenMaterials || {};
@@ -1804,15 +1952,14 @@ function updateBagTabIndicators() {
   if (!content || !state) return;
   const currentTab = state.activeBagTab || "items";
 
-  const weaponSlots = new Set(["r-hand", "two-hand", "l-hand"]);
   const hasNewWeapon = currentTab !== "weapons" &&(state.newLootIds ?? []).some((id) => {
     const item = content.loot.find((l) => l.id === id);
-    return item && weaponSlots.has(item.slot.toLowerCase());
+    return item && WEAPON_SLOTS.has(item.slot.toLowerCase());
   });
 
   const hasNewArmor = currentTab !== "armor" && (state.newLootIds ?? []).some((id) => {
     const item = content.loot.find((l) => l.id === id);
-    return item && item.slot !== "" && !weaponSlots.has(item.slot.toLowerCase());
+    return item && item.slot !== "" && !WEAPON_SLOTS.has(item.slot.toLowerCase());
   });
 
   state.seenMaterials = state.seenMaterials || {};

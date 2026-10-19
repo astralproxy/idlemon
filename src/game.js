@@ -8,6 +8,104 @@ export const ITEM_MAX_COUNT = 9;
 export const MAX_MATERIALS = 99;
 export const SHOP_REFRESH_COST = 50;
 
+export const WEAPON_SLOTS = new Set(["r-hand", "two-hand", "l-hand"]);
+
+export function isWeaponItem(item) {
+  return WEAPON_SLOTS.has((item.slot ?? "").toLowerCase());
+}
+export function isArmorItem(item) {
+  return (item.slot ?? "") !== "" && !isWeaponItem(item);
+}
+export function isBossItem(item) {
+  return (item.notes ?? "").toLowerCase().includes("boss");
+}
+export function isDragonItem(item) {
+  return /dragon/i.test(item.name);
+}
+export function isDragonMaterial(material) {
+  return material.name.trim().toLowerCase() === "dragon scale";
+}
+export function getMaxUpgradeLevel(item) {
+  if (!item.slot) return 0;
+  return isBossItem(item) ? 5 : 10;
+}
+export function getUpgradeCost(item, nextLevel) {
+  if (isBossItem(item)) {
+    if (nextLevel <= 2) return 1;
+    if (nextLevel <= 4) return 2;
+    return 4;
+  }
+  if (nextLevel <= 3) return 1;
+  if (nextLevel <= 7) return 2;
+  return 3;
+}
+
+// Does this skill effect scale with upgrades?
+function isUpgradedEffect(item, skillName, eff) {
+  const isDefend = skillName.toLowerCase() === "defend";
+  if (isArmorItem(item)) return isDefend;                    // armor: Defend only
+  return !(isDefend && eff.effectIsPercentage);              // weapons: all except Defend %
+}
+
+function baseItemEffects(item) {
+  return item.skillEffects?.length
+    ? item.skillEffects
+    : [{ effectValue: item.effectValue, effectIsPercentage: item.effectIsPercentage }];
+}
+
+export function isUpgradable(item) {
+  if (!item.slot) return false;
+  const skills = item.skills?.length ? item.skills : (item.skill ? [item.skill] : []);
+  const base = baseItemEffects(item);
+  return skills.some((sk, i) => isUpgradedEffect(item, sk, base[i] ?? base[0]));
+}
+
+// Effects after applying the item's upgrade level (+10% of base per level)
+export function getItemEffects(state, item) {
+  const skills = item.skills?.length ? item.skills : (item.skill ? [item.skill] : []);
+  const base = baseItemEffects(item);
+  const level = state.upgrades?.[item.id] ?? 0;
+  return skills.map((skName, i) => {
+    const eff = base[i] ?? base[0];
+    if (level === 0 || !isUpgradedEffect(item, skName, eff)) return eff;
+    return { ...eff, effectValue: eff.effectValue * (10 + level) / 10 };
+  });
+}
+
+export function upgradeLoot(state, content, lootId, materialId) {
+  const item = content.loot.find((loot) => loot.id === lootId);
+  if (!item) throw new Error("That loot item is not available.");
+  const owned = (state.lootInventory[lootId] ?? 0) > 0
+    || Object.values(state.gear ?? {}).includes(lootId);
+  if (!owned) throw new Error(`You no longer have ${item.name}.`);
+
+  const current = state.upgrades?.[lootId] ?? 0;
+  if (current >= getMaxUpgradeLevel(item)) {
+    throw new Error(`${item.name} is already at its maximum upgrade level.`);
+  }
+  const cost = getUpgradeCost(item, current + 1);
+  if ((state.currencyInventory[materialId] ?? 0) < cost) {
+    throw new Error("Not enough upgrade materials.");
+  }
+
+  const material = content.materials.find((m) => m.id === materialId);
+  if (!material) throw new Error("That material is not available.");
+  
+  if (isDragonItem(item) !== isDragonMaterial(material)) {
+    throw new Error(isDragonItem(item)
+      ? `${item.name} can only be upgraded with Dragon Scale.`
+      : `${material.name} cannot upgrade ${item.name}.`);
+  }
+
+  state.currencyInventory[materialId] -= cost;
+  if (state.currencyInventory[materialId] === 0) {
+    delete state.currencyInventory[materialId];
+  }
+  state.upgrades = state.upgrades ?? {};
+  state.upgrades[lootId] = current + 1;
+  return current + 1;
+}
+
 export function getPlayerMaxHp(level) {
   const l = Math.max(1, level);
   const standardLevels = Math.min(l - 1, 29);
@@ -330,6 +428,9 @@ export function sellLoot(state, content, lootId, count = 1) {
 
   state.lootInventory[item.id] -= count;
   if (state.lootInventory[item.id] === 0) {
+    if (!Object.values(state.gear ?? {}).includes(item.id)) {
+      delete state.upgrades?.[item.id];
+    }
     delete state.lootInventory[item.id];
     state.newLootIds = state.newLootIds.filter((id) => id !== item.id);
   }
@@ -399,6 +500,7 @@ export function createInitialState(content, now = Date.now()) {
     newLootIds: [],
     lootInventory: {},
     gear: {},
+    upgrades: {},
     currencyInventory: {},
     currencyBalance: 0,
     kills: {},
@@ -599,6 +701,14 @@ export function parseSavedState(serialized, content) {
     ? state.seenMaterials
     : {}; // Add this block
 
+  const upgrades = {};
+  for (const [id, level] of Object.entries(state.upgrades ?? {})) {
+    const lootItem = content.loot.find((loot) => loot.id === id);
+    if (lootItem && Number.isInteger(level) && level > 0) {
+      upgrades[id] = Math.min(level, getMaxUpgradeLevel(lootItem));
+    }
+  }
+
   return {
     version: SAVE_VERSION,
     level: state.level,
@@ -627,6 +737,7 @@ export function parseSavedState(serialized, content) {
     lootInventory,
     recoveryWarnings: [...recoveryWarnings, ...lootRecoveryWarnings],
     gear,
+    upgrades,
     currencyInventory,
     seenMaterials,
     currencyBalance,
@@ -690,7 +801,7 @@ export function getPlayerStats(state, content) {
     if (!item) continue;
 
     const itemSkills = item.skills?.length ? item.skills : (item.skill ? [item.skill] : []);
-    const itemEffects = item.skillEffects?.length ? item.skillEffects : [{ effectValue: item.effectValue, effectIsPercentage: item.effectIsPercentage }];
+    const itemEffects = getItemEffects(state, item);
 
     for (let i = 0; i < itemSkills.length; i++) {
       const skName = itemSkills[i];

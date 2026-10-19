@@ -1260,8 +1260,42 @@ button:focus-visible {
   cursor: pointer;
 }
 
+.crafted-loot-item .item-description {
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
 .crafted-loot-item:hover {
   border-color: var(--accent);
+}
+
+.crafted-loot-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.upgrade-dialog {
+  height: 80vh;
+  height: 80dvh;              /* better on mobile browsers; falls back to vh */
+  max-height: 80dvh;
+  flex-direction: column;
+}
+
+/* only apply flex when open, so a closed dialog stays hidden */
+.upgrade-dialog[open] {
+  display: flex;
+}
+
+.upgrade-dialog #craft-options-list {
+  flex: 1 1 auto;
+  max-height: none !important;  /* overrides the inline 200px */
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.upgrade-dialog .sell-confirm-actions {
+  flex: 0 0 auto;
 }
 
 .loot-item.is-new-loot {
@@ -1521,6 +1555,12 @@ button:focus-visible {
   color: white;
   font-weight: 700;
   cursor: pointer;
+}
+
+.list-item .button {
+  font-size: 0.85rem;
+  min-height: 34px;
+  padding: 6px 10px;
 }
 
 .button:hover:not(:disabled) {
