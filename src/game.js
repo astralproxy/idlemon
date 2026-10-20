@@ -39,6 +39,9 @@ export function getUpgradeCost(item, nextLevel) {
   if (nextLevel <= 7) return 2;
   return 3;
 }
+export function getUpgradeSoulCost(material) {
+  return isDragonMaterial(material) ? 10000 : 1000;
+}
 
 // Does this skill effect scale with upgrades?
 function isUpgradedEffect(item, skillName, eff) {
@@ -90,13 +93,22 @@ export function upgradeLoot(state, content, lootId, materialId) {
 
   const material = content.materials.find((m) => m.id === materialId);
   if (!material) throw new Error("That material is not available.");
-  
+
   if (isDragonItem(item) !== isDragonMaterial(material)) {
     throw new Error(isDragonItem(item)
       ? `${item.name} can only be upgraded with Dragon Scale.`
       : `${material.name} cannot upgrade ${item.name}.`);
   }
 
+  // Determine soul cost based on material type
+  const soulCost = getUpgradeSoulCost(material);
+  const currentSouls = state.currencyBalance ?? 0;
+  if (currentSouls < soulCost) {
+    throw new Error("Not enough souls.");
+  }
+
+  // Deduct souls and materials
+  state.currencyBalance = currentSouls - soulCost;
   state.currencyInventory[materialId] -= cost;
   if (state.currencyInventory[materialId] === 0) {
     delete state.currencyInventory[materialId];

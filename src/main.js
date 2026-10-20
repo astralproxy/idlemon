@@ -4,7 +4,8 @@ import { loadGameContent, RARITY_ORDER } from "./content.js";
 import {
   WEAPON_SLOTS,
   getItemEffects,
-  getMaxUpgradeLevel, getUpgradeCost, isUpgradable, isWeaponItem, upgradeLoot,
+  getMaxUpgradeLevel, getUpgradeCost, getUpgradeSoulCost,
+  isUpgradable, isWeaponItem, upgradeLoot,
   isDragonItem, isDragonMaterial,
   advanceGame,
   addLootToBag,
@@ -1558,8 +1559,21 @@ function openUpgradeDialog(material) {
   selectedCraftLootId = null;
 
   const matInventory = state.currencyInventory[material.id] ?? 0;
-  elements.craftDialogTitle.textContent = `Upgrading - ${material.name}: (${matInventory})`;
-  elements.craftDialogMessage.textContent = `Select item to upgrade. Upgrading increases primary stat by 10% per level.`;
+  const soulCost = getUpgradeSoulCost(material);
+  const currentSouls = state.currencyBalance ?? 0;
+  const hasEnoughSouls = currentSouls >= soulCost;
+
+  elements.craftDialogTitle.textContent = `Upgrading w/ ${material.name}: (${matInventory})`;
+  
+  // Base message + red italicized warning if souls are insufficient
+  let messageText = `Soul cost: ${numberFormat.format(soulCost)} per level`;
+  if (!hasEnoughSouls) {
+    messageText += `<span style="color: var(--warning); font-style: italic;"> (not enough souls)</span>`;
+  }
+  messageText += `\n<span class="muted">Select item to upgrade. Upgrading increases primary stat by 10% per level.</span>`;
+  elements.craftDialogMessage.innerHTML = messageText.replace(/\n/g, '<br>');
+  //elements.craftDialogMessage.textContent = `Select item to upgrade. Upgrading increases primary stat by 10% per level.`;
+  
   elements.craftOptionsList.replaceChildren();
   elements.craftConfirmBtn.disabled = true;
 
@@ -1578,7 +1592,8 @@ function openUpgradeDialog(material) {
     const maxLevel = getMaxUpgradeLevel(lootItem);
     const isMax = level >= maxLevel;
     const cost = isMax ? 0 : getUpgradeCost(lootItem, level + 1);
-    const canAfford = matInventory >= cost;
+    //const canAfford = matInventory >= cost;
+    const canAfford = matInventory >= cost && hasEnoughSouls;
 
     const optionCard = document.createElement("button");
     optionCard.type = "button";
