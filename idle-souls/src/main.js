@@ -2,6 +2,11 @@ import { DEBUG_ENABLED, SHEET_CSV_URLS } from "../config.js";
 import { loadGameContent, RARITY_ORDER } from "./content.js";
 
 import {
+  MAX_OFFLINE_SECONDS,
+  SAVE_KEY,
+  PLAYER_STARTING_MAX_HP, PLAYER_MAX_HP_CAP,
+  PLAYER_STARTING_MAX_STAMINA, PLAYER_MAX_STAMINA_CAP,
+  SHOP_REFRESH_COST,
   WEAPON_SLOTS,
   getItemEffects,
   getMaxUpgradeLevel, getUpgradeCost, getUpgradeSoulCost,
@@ -14,22 +19,17 @@ import {
   createRestoreKey,
   createInitialState,
   equipLoot,
-  getMonsterHealth,
-  getMonsterDamage,
+  getMonsterHealth, getMonsterDamage,
   experienceForNextLevel,
   getPlayerMaxHp,
   getPlayerStats,
-  getMaxItemCount,
-  isItemCountMaxed,
+  getMaxItemCount, isItemCountMaxed,
   isTwoHandEquipped,
-  MAX_OFFLINE_SECONDS,
   parseSavedState,
   refreshShop,
   resetSavedGame,
   revivePlayer,
   restoreStateFromKey,
-  SAVE_KEY,
-  SHOP_REFRESH_COST,
   selectMonster,
   sellMaterial,
   sellLoot,
@@ -159,6 +159,10 @@ const elements = {
   currencyCount: document.querySelector("#currency-count"),
   hp: document.querySelector("#player-hp"),
   hpMax: document.querySelector("#player-max-hp"),
+  playerHpContainer: document.querySelector("#player-hp-container"),
+  playerHpMeter: document.querySelector("#player-hp-meter"),
+  playerStaminaContainer: document.querySelector("#player-stamina-container"),
+  playerStaminaMeter: document.querySelector("#player-stamina-meter"),
   armor: document.querySelector("#player-armor"),
   damage: document.querySelector("#player-damage"),
   playerStatsPanel: document.querySelector(".player-stats-panel"),
@@ -183,9 +187,6 @@ const elements = {
   lootCheckDebug: document.querySelector("#loot-check-debug"),
   quickItemsSection: document.querySelector("#quick-items-section"),
   quickItemsList: document.querySelector("#quick-items-list"),
-  killCount: document.querySelector("#kill-count"),
-  defeatedCount: document.querySelector("#defeated-count"),
-  unlockedCount: document.querySelector("#unlocked-count"),
   
   gearList: document.querySelector("#gear-list"),
   gearToggle: document.querySelector("#gear-toggle"),
@@ -705,17 +706,32 @@ function render() {
   elements.inventoryGrid.classList.toggle("is-shop", state.activeTab === "shop");
   elements.playerStatsPanel.hidden = state.activeTab === "shop";
   elements.level.textContent = String(state.level);
-  elements.xp.textContent = `${numberFormat.format(state.xp)} / ${numberFormat.format(xpNeeded)} XP to next level`;
+  elements.xp.textContent = `Next: ${numberFormat.format(state.xp)} / ${numberFormat.format(xpNeeded)} XP`;
   elements.xpMeter.style.width = `${Math.min(100, (state.xp / xpNeeded) * 100)}%`;
   elements.xpMeter.parentElement.setAttribute("aria-valuemax", String(xpNeeded));
   elements.xpMeter.parentElement.setAttribute("aria-valuenow", String(Math.floor(state.xp)));
   elements.currencyCount.textContent = numberFormat.format(state.currencyBalance);
   elements.shopCurrencyCount.textContent = numberFormat.format(state.currencyBalance);
+  
   const playerHp = Math.floor(state.hp);
   const playerHpMax = getPlayerMaxHp(state.level);
   elements.hp.textContent = numberFormat.format(playerHp);
   elements.hpMax.textContent = numberFormat.format(playerHpMax);
-  elements.armor.textContent = numberFormat.format(stats.defense);
+  
+  const hpContainerPct = Math.max(0, Math.min(100, (playerHpMax / PLAYER_MAX_HP_CAP) * 100));
+  const hpFillPct = Math.max(0, Math.min(100, (playerHp / playerHpMax) * 100));
+  if (elements.playerHpContainer) elements.playerHpContainer.style.width = `${hpContainerPct}%`;
+  if (elements.playerHpMeter) elements.playerHpMeter.style.width = `${hpFillPct}%`;
+  
+  const staminaVal = state.stamina ?? PLAYER_STARTING_MAX_STAMINA;
+  const maxStamina = state.maxStamina ?? PLAYER_STARTING_MAX_STAMINA;
+  const staminaContainerPct = Math.max(0, Math.min(100, (maxStamina / PLAYER_MAX_STAMINA_CAP) * 100));
+  const staminaFillPct = Math.max(0, Math.min(100, (staminaVal / maxStamina) * 100));
+  if (elements.playerStaminaContainer) elements.playerStaminaContainer.style.width = `${staminaContainerPct}%`;
+  if (elements.playerStaminaMeter) elements.playerStaminaMeter.style.width = `${staminaFillPct}%`;
+
+  //elements.armor.textContent = numberFormat.format(stats.defense);
+  elements.armor.textContent = `${numberFormatDecimal.format(stats.defense)} + ${stats.defensePercent}%`;
   elements.damage.textContent = numberFormat.format(stats.damage);
   elements.compactPlayerLevel.textContent = numberFormat.format(state.level);
   elements.compactPlayerHp.textContent = numberFormat.format(playerHp);
@@ -725,12 +741,14 @@ function render() {
   //elements.compactPlayerArmor.textContent = numberFormat.format(stats.defense);
   elements.compactPlayerArmor.textContent = `${numberFormatDecimal.format(stats.defense)} + ${stats.defensePercent}%`;
   elements.compactPlayerDamage.textContent = numberFormatDecimal.format(stats.damage);
-  elements.playerStatsDetails.hidden = playerStatsCollapsed;
-  elements.playerStatsCompact.hidden = !playerStatsCollapsed;
-  elements.playerStatsToggle.setAttribute("aria-expanded", String(!playerStatsCollapsed));
-  elements.playerStatsToggle.textContent = playerStatsCollapsed ? "+" : "−";
-  elements.playerStatsToggle.setAttribute("aria-label", `${playerStatsCollapsed ? "Expand" : "Collapse"} Player Stats`);
-  
+  if (elements.playerStatsDetails) elements.playerStatsDetails.hidden = playerStatsCollapsed;
+  if (elements.playerStatsCompact) elements.playerStatsCompact.hidden = !playerStatsCollapsed;
+  if (elements.playerStatsToggle) {
+    elements.playerStatsToggle.setAttribute("aria-expanded", String(!playerStatsCollapsed));
+    elements.playerStatsToggle.textContent = playerStatsCollapsed ? "+" : "−";
+    elements.playerStatsToggle.setAttribute("aria-label", `${playerStatsCollapsed ? "Expand" : "Collapse"} Player Stats`);
+  }
+
   elements.gearContent.hidden = gearCollapsed;
   elements.gearToggle.setAttribute("aria-expanded", String(!gearCollapsed));
   elements.gearToggle.textContent = gearCollapsed ? "+" : "−";
@@ -784,7 +802,21 @@ function render() {
     elements.monsterSelectedLabel.textContent = "Choose an enemy...";
   }
   const target = content.monsters.find((monster) => monster.id === state.targetMonsterId);
-  const availableMonsters = content.monsters;//.filter((monster) => monster.unlock_level <= state.level);
+  //const availableMonsters = content.monsters;//.filter((monster) => (state.kills[monster.id] ?? 0) > 0);
+  // const availableMonsters = content.monsters.filter((monster, idx, arr) => {
+  //   const isKilled = (state.kills[monster.id] ?? 0) > 0;
+  //   const isBoss = monster.type.toLowerCase() === "boss";
+  //   if (isKilled) return true;
+  //   if (isBoss) return false;
+    
+  //   // Find the first boss that has not been killed yet
+  //   const firstUndefeatedBossIndex = arr.findIndex(
+  //     (m) => m.type.toLowerCase() === "boss" && (state.kills[m.id] ?? 0) === 0
+  //   );
+    
+  //   // Include all non-boss enemies prior to that first undefeated boss
+  //   return firstUndefeatedBossIndex === -1 || idx < firstUndefeatedBossIndex;
+  // });
 
   elements.activeMonsterCard.hidden = !target || state.awaitingMonsterSelection;
   elements.bossKilledCard.hidden = !target || !state.awaitingMonsterSelection;
@@ -798,7 +830,7 @@ function render() {
       : `Debug loot check: ${displayName} rolled ${numberFormat.format(roll)}% vs ${numberFormat.format(chance)}% — ${dropped ? "dropped" : "no drop"}.`;
   }
   elements.prepareMonster.hidden = !target || state.activeTab !== "prepare" || state.awaitingMonsterSelection;
-  elements.killCount.hidden = !target || state.awaitingMonsterSelection;
+  
   if (target) {
     // Determine loot rewards: actual dropped items if defeated, potential items if active
     // Normal enemies show all loot as rewards because we don't take time to see what actually dropped
@@ -927,13 +959,8 @@ function render() {
 
     const rewardsText = itemRewards.length > 0 ? itemRewards.join(", ") : "";
     elements.monsterReward.textContent = rewardsText ? `Rewards: ${rewardsText}` : "Rewards: none";
-
-    elements.defeatedCount.textContent = `Defeated: ${numberFormat.format(state.kills[target.id] ?? 0)} monsters`;
-    elements.unlockedCount.textContent = `${numberFormat.format(availableMonsters.length)} of ${numberFormat.format(content.monsters.length)} unlocked`;
   } else {
     elements.monsterSelectedLabel.textContent = "Choose an enemy...";
-    elements.defeatedCount.textContent = `Defeated: ${numberFormat.format(Object.values(state.kills).reduce((total, count) => total + count, 0))} monsters`;
-    elements.unlockedCount.textContent = `${numberFormat.format(availableMonsters.length)} of ${numberFormat.format(content.monsters.length)} unlocked`;
   }
 
   const soulsLost = state.soulsLost ?? 0;
@@ -2288,7 +2315,7 @@ function tick() {
     advanceGame(state, content, elapsed * gameSpeed);
 
     // if new monster activated, we will update the bg image
-    checkAndUpdateBackground();    
+    checkAndUpdateBackground();
   }
   
   // Triggered when a Boss is defeated (entering awaiting selection state)
