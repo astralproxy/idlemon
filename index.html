@@ -153,7 +153,15 @@
             <span>DPS: <strong id="compact-player-damage">1</strong></span>
           </div>
           <div id="player-stats-details">
-            <div class="summary-grid" aria-label="Player progress">
+            <div class="player-bars-container" style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px;">
+              <div id="player-hp-container" class="meter player-hp-meter" role="progressbar" aria-label="Player HP" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" style="background: #171717; height: 12px; border-radius: 0;">
+                <span id="player-hp-meter" style="background: #a80000; width: 100%; border-radius: 0;"></span>
+              </div>
+              <div id="player-stamina-container" class="meter player-stamina-meter" role="progressbar" aria-label="Player Stamina" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" style="background: #171717; height: 12px; border-radius: 0;">
+                <span id="player-stamina-meter" style="background: #38761d; width: 100%; border-radius: 0;"></span>
+              </div>
+            </div>
+            <div class="summary-grid" aria-label="Player Progress">
               <article class="panel summary-card">
                 <span class="summary-label">Level</span>
                 <strong id="player-level" class="summary-value">1</strong>
@@ -163,19 +171,16 @@
                 <p id="player-xp" class="muted"></p>
               </article>
               <article class="panel summary-card">
-                <span class="summary-label">HP / Max HP / Defense</span>
-                <strong class="summary-value"><span id="player-hp">400</span><span class="stat-divider"> / </span><span id="player-max-hp">400</span><span class="stat-divider"> / </span><span id="player-armor">0</span></strong>
-                <span class="muted">Current health / maximum health / damage reduction</span>
+                <span class="summary-label">HP - DEFENSE</span>
+                <span><strong class="summary-value"><span id="player-hp">400</span><span class="stat-divider"> / </span><span id="player-max-hp">400</span><span class="stat-divider"></span>
+                  <br></span><span id="player-armor">0</span></strong>
+                <span class="muted">(from equipment)</span>
               </article>
               <article class="panel summary-card">
                 <span class="summary-label">DPS</span>
                 <strong id="player-damage" class="summary-value">1</strong>
-                <span class="muted">Damage per second</span>
+                <span class="muted">(damage per second)</span>
               </article>
-            </div>
-            <div id="kill-count" class="kill-count muted">
-              <span id="defeated-count"></span>
-              <span id="unlocked-count"></span>
             </div>
           </div>
         </section>

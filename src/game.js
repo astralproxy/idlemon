@@ -3,6 +3,10 @@ export const SAVE_KEY = "idlemon-save-v1";
 export const SAVE_VERSION = 13;
 export const PLAYER_STARTING_MAX_HP = 400;
 export const PLAYER_MAX_HP_CAP = 1525;
+export const PLAYER_STARTING_MAX_STAMINA = 91;
+export const PLAYER_MAX_STAMINA_CAP = 160;
+const PLAYER_STAMINA_PER_HIT = 30;
+const PLAYER_STAMINA_REGEN_RATE = 15;
 export const ESTUS_BASE_COUNT = 5;
 export const ITEM_MAX_COUNT = 9;
 export const MAX_MATERIALS = 99;
@@ -489,6 +493,8 @@ export function createInitialState(content, now = Date.now()) {
     level: 1,
     xp: 0,
     hp: getPlayerMaxHp(1),
+    stamina: PLAYER_STARTING_MAX_STAMINA,
+    maxStamina: PLAYER_STARTING_MAX_STAMINA,
     playtime: 0, // Track total play time in seconds
     ngPlus: 0,
     autoHealEnabled: false,
@@ -1278,9 +1284,19 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
   if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 0) {
     throw new Error("Elapsed game time must be a non-negative number.");
   }
-  if (state.gameOver || state.awaitingMonsterSelection) {
+  if (state.gameOver)
+  {
     return state;
   }
+
+  // Regenerate stamina each tick, even out of combat
+  // TODO: get actual max stamina based on level
+  state.stamina = Math.min(PLAYER_STARTING_MAX_STAMINA, (state.stamina ?? 0) + PLAYER_STAMINA_REGEN_RATE);
+
+  if (state.awaitingMonsterSelection) {
+    return state;
+  }
+
   const elapsed = Math.min(elapsedSeconds, MAX_OFFLINE_SECONDS);
   const attacks = Math.floor(state.attackRemainder + elapsed + Number.EPSILON);
   state.attackRemainder = state.attackRemainder + elapsed - attacks;
@@ -1318,6 +1334,10 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
     
     const stats = getPlayerStats(state, content);
     state.monsterHp -= stats.damage;
+
+    // Consume player stamina every hit
+    const maxStamina = state.maxStamina ?? PLAYER_STARTING_MAX_STAMINA;
+    state.stamina = Math.max(0, (state.stamina ?? maxStamina) - PLAYER_STAMINA_PER_HIT);
 
     // Apply passive healing from equipped gear
     if (stats.gearHealing > 0 && state.hp > 0 && !state.gameOver) {
@@ -1360,9 +1380,6 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
     state.nextHitDefensePercent = 0;
     state.hp = Math.max(0, state.hp - reducedDamage);
 
-    // Trigger auto-heal check immediately after taking damage
-    processAutoHeal(state, content);
-
     if (state.hp === 0) {
       state.gameOver = true;
       state.attackRemainder = 0;
@@ -1370,6 +1387,9 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
       state.currencyBalance = 0;
       break;
     }
+
+    // Trigger auto-heal check immediately after taking damage (if not dead)
+    processAutoHeal(state, content);
   }
 
   return state;
