@@ -22,6 +22,7 @@ import {
   getMonsterHealth, getMonsterDamage,
   experienceForNextLevel,
   getPlayerMaxHp,
+  getSpecialItemBonuses,
   getPlayerStats,
   getMaxItemCount, isItemCountMaxed,
   isTwoHandEquipped,
@@ -72,12 +73,13 @@ const elements = {
   profileNgplus: document.querySelector("#profile-ngplus"),
   helpPage: document.querySelector("#help-page"),
   settingsPage: document.querySelector("#settings-page"),
+  swapInventoryOrder: document.querySelector("#swap-inventory-order"),
+  hideStatusText: document.querySelector("#hide-status-text"),
   settingsAutoHealEnabled: document.querySelector("#settings-auto-heal-enabled"),
   settingsAutoHealThreshold: document.querySelector("#settings-auto-heal-threshold"),
-  swapInventoryOrder: document.querySelector("#swap-inventory-order"),
+  settingsSellConfirmRarity: document.querySelector("#settings-sell-confirmation-rarity"),
   settingsWeaponSort: document.querySelector("#settings-weapon-sort"),
   settingsArmorSort: document.querySelector("#settings-armor-sort"),
-  hideStatusText: document.querySelector("#hide-status-text"),
 
   statusPanel: document.querySelector(".status-panel"),
   statusLogList: document.querySelector("#status-log-list"),
@@ -214,6 +216,7 @@ const GEAR_SLOTS = ["R-Hand", "L-Hand", "Ring", "Head", "Chest", "Arms", "Legs"]
 const QUICK_ITEM_IGNORED_SKILLS = new Set(["revive"]);
 const INVENTORY_ORDER_KEY = "idlemon-inventory-order-swapped";
 const HIDE_STATUS_TEXT_KEY = "idlemon-hide-status-text";
+const SELL_CONFIRM_RARITY_KEY = "idlemon-sell-confirm-rarity";
 const WEAPON_SORT_KEY = "idlemon-weapon-sort";
 const ARMOR_SORT_KEY = "idlemon-armor-sort";
 const GAME_SPEED_KEY = "idlemon-game-speed";
@@ -307,6 +310,55 @@ function showError(message) {
   elements.errorPanel.hidden = false;
   elements.errorMessage.textContent = message;
   elements.status.textContent = "Game unavailable.";
+}
+
+function showItemDescriptionDialog(item) {
+  if (!elements.confirmDialog) {
+    window.alert(item.description || item.Description || "No description available.");
+    return;
+  }
+
+  // Apply custom Dark Souls dialog class
+  elements.confirmDialog.classList.add("item-description-dialog");
+
+  elements.confirmDialogTitle.textContent = item.name;
+
+  const descText = item.description || item.Description || "No description available.";
+  
+  // Format metadata lines if item has slot/skill info
+  let metaHtml = "";
+  // if (item.slot) {
+  //   metaHtml += `<div>Item type: ${item.slot}</div>`;
+  // }
+
+  // Construct justified body over ruled background
+  elements.confirmDialogMessage.innerHTML = `
+    ${metaHtml ? `<div class="item-desc-header">${metaHtml}</div>` : ""}
+    <div class="item-desc-body"><br>${descText}</div>
+  `;
+
+  elements.confirmDialogYes.textContent = "Close";
+  elements.confirmDialogYes.className = "button secondary";
+
+  if (elements.confirmDialogNo) {
+    elements.confirmDialogNo.style.display = "none";
+  }
+
+  elements.confirmDialog.showModal();
+
+  return new Promise((resolve) => {
+    elements.confirmDialog.addEventListener(
+      "close",
+      () => {
+        elements.confirmDialog.classList.remove("item-description-dialog");
+        if (elements.confirmDialogNo) {
+          elements.confirmDialogNo.style.display = "";
+        }
+        resolve();
+      },
+      { once: true }
+    );
+  });
 }
 
 // Generic confirmation popup dialog
@@ -445,15 +497,40 @@ function lootEffectText(item, st = state) {
   if (skills.length === 0) {
     return "No associated skill";
   }
+
   const effects = getItemEffects(st, item);
   const formatter = item.slot === "" ? numberFormat : numberFormatDecimal;
-  return skills.map((skName, idx) => {
+
+  // Get any bonus for this specific item
+  const special = getSpecialItemBonuses(st, content, item);
+  const extraDamageBonus = special.damage;
+  const extraReason = special.reason;
+
+  const baseText = skills.map((skName, idx) => {
     const eff = effects[idx];
+    const skill = content?.skills.find((candidate) => candidate.name.toLowerCase() === skName.toLowerCase());
+    
+    // Render standard base effect value without the inline bonus string
     const effectValueStr = eff.effectIsPercentage
       ? `${formatter.format(eff.effectValue)}%`
       : formatter.format(eff.effectValue);
+
     return `${skName} (${effectValueStr})`;
   }).join(", ");
+
+  let result = baseText;
+
+  // Put extra damage scaling on a new line if present
+  if (extraDamageBonus > 0 && extraReason) {
+    result += `\n+${formatter.format(extraDamageBonus)} dmg from ${extraReason}`;
+  }
+
+  // Put self-damage on a new line if present
+  if (special.selfDamage < 0) {
+    result += `\nSelf-damage: ${Math.abs(special.selfDamage)} HP per attack`;
+  }
+
+  return result;
 }
 
 function itemDisplayName(item) {
@@ -1014,6 +1091,15 @@ function render() {
         createTextElement("span", `item-title loot-rarity rarity-${item.rarity.toLowerCase()}`, itemDisplayName(item)),
         createTextElement("span", "muted item-description", shortenSkillTerms(lootEffectText(item))),
       );
+
+      // TAP TO VIEW ITEM DESCRIPTION
+      itemColumn.style.cursor = "pointer";
+      itemColumn.title = "Tap to view description";
+      itemColumn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        showItemDescriptionDialog(item);
+      });
+
       const button = document.createElement("button");
       button.type = "button";
       button.className = "button secondary";
@@ -1130,6 +1216,14 @@ function render() {
     // Text description container (Column 1)
     const textContainer = createTextElement("div", "skill-copy", "");
 
+    // TAP TO VIEW ITEM DESCRIPTION
+    textContainer.style.cursor = "pointer";
+    textContainer.title = "Tap to view description";
+    textContainer.addEventListener("click", (e) => {
+      e.stopPropagation();
+      showItemDescriptionDialog(item);
+    });
+
     // Badge element (Column 2)
     const badge = createTextElement("span", "badge", `×${state.lootInventory[item.id]}`);
 
@@ -1169,10 +1263,16 @@ function render() {
           legendary: 5,
           mythic: 6,
         };
-        if ((rarityLevels[item.rarity.toLowerCase()] ?? 0) >= rarityLevels.rare
-            && !await confirmLootSale(item, count)) {
+
+        // Read user preference from localStorage (default to 'rare' if not set)
+        const userThreshold = localStorage.getItem(SELL_CONFIRM_RARITY_KEY) || "rare";
+        const thresholdLevel = rarityLevels[userThreshold.toLowerCase()] ?? 3;
+        const itemRarityLevel = rarityLevels[item.rarity.toLowerCase()] ?? 0;
+
+        if (itemRarityLevel >= thresholdLevel && !await confirmLootSale(item, count)) {
           return;
         }
+
         if (!sellLoot(state, content, item.id, count)) {
           setStatus(`${item.name} is no longer in your Bag.`);
           render();
@@ -1336,6 +1436,14 @@ function render() {
       const isUpgradeMaterial = (item.notes ?? "").trim().toLowerCase() === "upgrade";
 
       const textContainer = createTextElement("div", "skill-copy", "");
+
+      // TAP TO VIEW ITEM DESCRIPTION
+      textContainer.style.cursor = "pointer";
+      textContainer.title = "Tap to view description";
+      textContainer.addEventListener("click", (e) => {
+        e.stopPropagation();
+        showItemDescriptionDialog(item);
+      });
 
       // Apply text highlight if notes === "Boss"
       const titleClasses = `item-title${isBossMaterial ? " boss-material-title" : ""}`;
@@ -2611,6 +2719,11 @@ async function startGame() {
           elements.settingsAutoHealThreshold.value = parsed;
         }
       }
+
+      const savedSellRarity = localStorage.getItem(SELL_CONFIRM_RARITY_KEY);
+      if (savedSellRarity && elements.settingsSellConfirmRarity) {
+        elements.settingsSellConfirmRarity.value = savedSellRarity;
+      }
       
       const savedGameSpeed = Number(localStorage.getItem(GAME_SPEED_KEY));
       gameSpeed = GAME_SPEEDS.includes(savedGameSpeed) ? savedGameSpeed : 1;
@@ -2640,6 +2753,16 @@ async function startGame() {
     }
     elements.settingsAutoHealEnabled.checked = Boolean(state.autoHealEnabled);
     elements.settingsAutoHealThreshold.value = state.autoHealThreshold ?? 100;
+
+    elements.settingsSellConfirmRarity.addEventListener("change", () => {
+      const val = elements.settingsSellConfirmRarity.value;
+      try {
+        localStorage.setItem(SELL_CONFIRM_RARITY_KEY, val);
+        setStatus("Sale confirmation threshold updated.");
+      } catch (error) {
+        setStatus(`Could not save setting: ${error.message}`);
+      }
+    });
 
     state.weaponSort = localStorage.getItem(WEAPON_SORT_KEY) || "strength";
     state.armorSort = localStorage.getItem(ARMOR_SORT_KEY) || "type";
