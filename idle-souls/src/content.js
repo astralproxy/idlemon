@@ -61,10 +61,14 @@ const SCHEMAS = {
       const primarySkill = skills[0] ?? "";
       const primaryEffect = skillEffects[0] ?? { effectValue: 0, effectIsPercentage: false };
 
+      // Read Description column if available
+      const csvDescription = row.Description ? row.Description.trim() : "";
+      //const defaultDesc = skills.length > 0 ? `Associated skills: ${skills.join(", ")}` : "Collectible loot item";
+
       return {
         id: slug(name),
         name,
-        description: skills.length > 0 ? `Associated skills: ${skills.join(", ")}` : "Collectible loot item",
+        description: csvDescription,//skills.length > 0 ? `Associated skills: ${skills.join(", ")}` : "Collectible loot item",
         skill: primarySkill,
         skills,
         skillEffects,
@@ -299,7 +303,9 @@ export function validateContent(content) {
       }
       item.skills = validatedSkills;
       item.skill = validatedSkills[0] ?? "";
-      item.description = validatedSkills.length > 0 ? `Associated skills: ${validatedSkills.join(", ")}` : "Collectible loot item";
+
+      // Optional override for item description
+      //item.description = validatedSkills.length > 0 ? `Associated skills: ${validatedSkills.join(", ")}` : "Collectible loot item";
     }
   }
   

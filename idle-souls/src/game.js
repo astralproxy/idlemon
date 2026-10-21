@@ -805,9 +805,70 @@ function pruneCountMap(value, allowedIds, label) {
   return repaired;
 }
 
+export function getHumanity(state, content) {
+  let humanityCount = 0;
+
+  const humanityItem = content.materials.find((m) => m.name.toLowerCase() === "humanity")
+        || content.loot.find((l) => l.name.toLowerCase() === "humanity");
+    
+  if (humanityItem) {
+    humanityCount = state.currencyInventory?.[humanityItem.id] 
+      ?? state.lootInventory?.[humanityItem.id] 
+      ?? 0;
+  }
+
+  return humanityCount;
+}
+
+export function getSpecialItemBonuses(state, content, item = null) {
+  let extraDamage = 0;
+  let selfDamage = 0; // should be NEGATIV
+  let extraReason = "";
+
+  // Helper to check for certain items by name
+  const isChaosBlade = (i) => i && (i.id === "chaos-blade" || i.name.toLowerCase().includes("chaos blade"));
+  const isFurysword = (i) => i && (i.id === "quelaags-furysword" || i.name.toLowerCase().includes("quelaag's furysword"));
+
+  // If a specific item was passed, check it; otherwise check all equipped gear
+  const itemsToCheck = item ? [item] : Object.values(state.gear ?? {}).map(id => content.loot.find(l => l.id === id));
+
+  // Check given or equipped gear for special item rules
+  for (const gearItem of itemsToCheck) {
+    if (isChaosBlade(gearItem)) {
+      extraReason = "Chaos";
+      selfDamage = -20;
+
+      const humanityCount = getHumanity(state, content);
+      if (humanityCount > 0) {
+        const bonuses = [0, 2, 1, 1, .6, .7, .6, .6, .6, .7, .6];
+        extraDamage += bonuses[Math.min(10, humanityCount)];
+      }
+    }
+    if (isFurysword(gearItem)) {
+      extraReason = "Humanity";
+
+      const humanityCount = getHumanity(state, content);
+      if (humanityCount > 0) {
+        // Example scaling: 1 humanity = +2 dmg, 2 = +5 dmg, etc. 
+        // Or a formula: e.g., +2 damage per humanity:
+        const pairs = Math.floor(humanityCount / 2);
+        extraDamage += (pairs * 0.5) + ((humanityCount % 2 !== 0) ? 0.2 : 0);
+
+        // TODO: add fire damage
+      }
+    }
+  }
+
+  return {  damage: extraDamage,
+            selfDamage: selfDamage,
+            reason : extraReason
+   };
+}
+
 export function getPlayerStats(state, content) {
   let gearDamage = 0;
   let gearHealing = 0;
+  let weaponHealing = 0;
   const bonuses = {
     xp_multiplier: 0,
     defense_flat: 0,
@@ -838,17 +899,26 @@ export function getPlayerStats(state, content) {
       }
       if (skill?.effect === "heal") {
         const maxHp = getPlayerMaxHp(state.level);
-        gearHealing += eff.effectIsPercentage ? (maxHp * eff.effectValue / 100) : eff.effectValue;
+        if (item.slot === "R-Hand" || item.slot === "Two-Hand")
+        {
+          weaponHealing += eff.effectIsPercentage ? (maxHp * eff.effectValue / 100) : eff.effectValue;
+        } else {
+          gearHealing += eff.effectIsPercentage ? (maxHp * eff.effectValue / 100) : eff.effectValue;
+        }
       }
     }
   }
 
+  // Incorporate special item rules (e.g., Quelaag's Furysword humanity scaling)
+  const specialBonuses = getSpecialItemBonuses(state, content);
+
   return {
-    damage: 1 + gearDamage,
+    damage: 1 + gearDamage + specialBonuses.damage,
     defense: state.godMode ? 999 : bonuses.defense_flat,
     defensePercent: Math.min(100, bonuses.defense_percent),
     xpMultiplier: Math.max(0, 1 + bonuses.xp_multiplier),
-    gearHealing,
+    gearHealing, weaponHealing,
+    selfDamage: specialBonuses.selfDamage
   };
 }
 
@@ -1289,10 +1359,19 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
     return state;
   }
 
+  const stats = getPlayerStats(state, content);
+
   // Regenerate stamina each tick, even out of combat
   // TODO: get actual max stamina based on level
   state.stamina = Math.min(PLAYER_STARTING_MAX_STAMINA, (state.stamina ?? 0) + PLAYER_STAMINA_REGEN_RATE);
 
+  // Apply passive healing from equipped gear (but not weapons)
+  if (stats.gearHealing > 0 && state.hp > 0 && !state.gameOver) {
+    const maxHp = getPlayerMaxHp(state.level);
+    state.hp = Math.min(maxHp, state.hp + stats.gearHealing);
+  }
+
+  // Check if we aren't actively fighting and return early
   if (state.awaitingMonsterSelection) {
     return state;
   }
@@ -1331,19 +1410,31 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
       state.monsterHp = -1; // Move to reload state for the following tick
       break; // Pause combat for this tick while showing 0 HP
     }
+
+    // Apply healing from equipped weapons
+    if (stats.weaponHealing > 0 && state.hp > 0 && !state.gameOver) {
+      const maxHp = getPlayerMaxHp(state.level);
+      state.hp = Math.min(maxHp, state.hp + stats.weaponHealing);
+    }
     
-    const stats = getPlayerStats(state, content);
+    // Damage enemy
     state.monsterHp -= stats.damage;
+
+    // Damage self (negatively)
+    if (stats.selfDamage > 0 && !state.godMode) {
+      state.hp = Math.max(0, state.hp + stats.selfDamage);
+      if (state.hp === 0) {
+        state.gameOver = true;
+        state.attackRemainder = 0;
+        state.soulsLost = state.currencyBalance ?? 0;
+        state.currencyBalance = 0;
+        break;
+      }
+    }
 
     // Consume player stamina every hit
     const maxStamina = state.maxStamina ?? PLAYER_STARTING_MAX_STAMINA;
     state.stamina = Math.max(0, (state.stamina ?? maxStamina) - PLAYER_STAMINA_PER_HIT);
-
-    // Apply passive healing from equipped gear
-    if (stats.gearHealing > 0 && state.hp > 0 && !state.gameOver) {
-      const maxHp = getPlayerMaxHp(state.level);
-      state.hp = Math.min(maxHp, state.hp + stats.gearHealing);
-    }
 
     // Fatal hit
     if (state.monsterHp <= 0) {

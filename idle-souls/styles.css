@@ -1,6 +1,7 @@
 :root {
   color-scheme: dark;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Georgia", "Times New Roman", serif;
+  /*font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;*/
   background: #202020;
   color: #ededed;
   font-synthesis: none;
@@ -469,7 +470,8 @@ h3 {
 .panel.player-stats-pan
 .shop-price,
 .bag-sale-value {
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Georgia", "Times New Roman", serif;
+  /*font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;*/
   font-size: 0.8rem;
   font-weight: 500;
   color: var(--accent);
@@ -495,6 +497,59 @@ h3 {
   border-radius: 12px;
   background: #0d0c0a;
   box-shadow: 0 4px 20px rgb(0 0 0 / 25%);
+}
+
+/* Dark Souls Item Description Dialog Styling */
+#confirm-dialog.item-description-dialog {
+  border: 1px solid #5e4a2b;
+  background-color: #0c0a08;
+  color: #c0b8aa;
+  font-family: "Georgia", "Times New Roman", serif;
+  padding: 18px 24px;
+  max-width: 360px;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.9);
+}
+
+#confirm-dialog.item-description-dialog h2 {
+  font-size: 1.25rem;
+  font-weight: normal;
+  color: #dcd3c1;
+  margin: 0 0 8px 0;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #5e4a2b;
+}
+
+/* Ruled lines behind justified description text */
+.item-desc-body {
+  text-align: justify;
+  font-size: 0.95rem;
+  line-height: 1.8rem; /* Matches the background repeating line height */
+  color: #b8b0a0;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent calc(1.8rem - 1px),
+    #5e4a2b calc(1.8rem - 1px),
+    #5e4a2b 1.8rem
+  );
+  background-position: 0 0px;
+  padding: 0;
+  margin: 0;
+}
+
+/* Header metadata section (Weapon type, Attack type, etc.) */
+.item-desc-header {
+  font-size: 1.2rem;
+  line-height: 1.8rem;
+  color: #a09888;
+  /*background-image: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent calc(2rem - 1px),
+    #5e4a2b calc(2rem - 1px),
+    #5e4a2b 2rem
+  );*/
+  margin-bottom: 0;
 }
 
 .summary-card {
@@ -1560,6 +1615,7 @@ button:focus-visible {
 
 .item-description {
   max-width: 38ch;
+  white-space: pre-line;
 }
 
 .item-level {
