@@ -764,6 +764,48 @@ export function parseSavedState(serialized, content) {
   };
 }
 
+export function getItemDamageBreakdown(state, item, content) {
+  let physical = 0;
+  let magic = 0;
+  let fire = 0;
+  let lightning = 0;
+  let poison = 0;
+
+  const skills = item.skills?.length ? item.skills : (item.skill ? [item.skill] : []);
+  const effects = getItemEffects(state, item);
+
+  // Flatten all effect values, splitting any comma-separated strings
+  const allValues = [];
+  for (const eff of effects) {
+    if (typeof eff.effectValue === "string" && eff.effectValue.includes(",")) {
+      const splitVals = eff.effectValue.split(",").map((v) => Number(v.trim()) || 0);
+      allValues.push(...splitVals);
+    } else {
+      allValues.push(Number(eff.effectValue) || 0);
+    }
+  }
+
+  // Map values index-by-index to skills in order
+  for (let i = 0; i < skills.length; i++) {
+    const skName = (skills[i] || "").toLowerCase();
+    const val = allValues[i] !== undefined ? allValues[i] : (allValues[0] || 0);
+
+    if (skName.includes("magic")) {
+      magic += val;
+    } else if (skName.includes("fire")) {
+      fire += val;
+    } else if (skName.includes("lightning")) {
+      lightning += val;
+    } else if (skName.includes("poison")) {
+      poison += val;
+    } else {
+      physical += val;
+    }
+  }
+
+  return { physical, magic, fire, lightning, poison };
+}
+
 function isNonNegativeNumber(value) {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
@@ -866,7 +908,11 @@ export function getSpecialItemBonuses(state, content, item = null) {
 }
 
 export function getPlayerStats(state, content) {
-  let gearDamage = 0;
+  let physicalDamage = 0;
+  let magicDamage = 0;
+  let fireDamage = 0;
+  let lightningDamage = 0;
+  let poisonDamage = 0;
   let gearHealing = 0;
   let weaponHealing = 0;
   const bonuses = {
@@ -882,13 +928,14 @@ export function getPlayerStats(state, content) {
     const itemSkills = item.skills?.length ? item.skills : (item.skill ? [item.skill] : []);
     const itemEffects = getItemEffects(state, item);
 
+    let hasDamage = false;
     for (let i = 0; i < itemSkills.length; i++) {
       const skName = itemSkills[i];
       const eff = itemEffects[i] ?? itemEffects[0];
       const skill = content.skills.find((candidate) => candidate.name.toLowerCase() === skName.toLowerCase());
 
-      if (skill?.effect === "damage_flat") {
-        gearDamage += eff.effectValue;
+      if (skill?.effect === "damage_flat" || (!skill && skName)) {
+        hasDamage = true;
       }
       if (skill?.effect === "defense_flat") {
         if (eff.effectIsPercentage) {
@@ -899,21 +946,32 @@ export function getPlayerStats(state, content) {
       }
       if (skill?.effect === "heal") {
         const maxHp = getPlayerMaxHp(state.level);
-        if (item.slot === "R-Hand" || item.slot === "Two-Hand")
-        {
+        if (item.slot === "R-Hand" || item.slot === "Two-Hand") {
           weaponHealing += eff.effectIsPercentage ? (maxHp * eff.effectValue / 100) : eff.effectValue;
         } else {
           gearHealing += eff.effectIsPercentage ? (maxHp * eff.effectValue / 100) : eff.effectValue;
         }
       }
     }
+
+    if (hasDamage) {
+      const breakdown = getItemDamageBreakdown(state, item, content);
+      physicalDamage += breakdown.physical;
+      fireDamage += breakdown.fire;
+      magicDamage += breakdown.magic;
+    }
   }
 
   // Incorporate special item rules (e.g., Quelaag's Furysword humanity scaling)
   const specialBonuses = getSpecialItemBonuses(state, content);
 
+  const totalPhysical = 1 + physicalDamage + specialBonuses.damage;
+  const totalDamage = totalPhysical + magicDamage + fireDamage + lightningDamage + poisonDamage;
+
   return {
-    damage: 1 + gearDamage + specialBonuses.damage,
+    damage: totalDamage,//1 + gearDamage + specialBonuses.damage,
+    physicalDamage: totalPhysical,
+    magicDamage, fireDamage, lightningDamage, poisonDamage,
     defense: state.godMode ? 999 : bonuses.defense_flat,
     defensePercent: Math.min(100, bonuses.defense_percent),
     xpMultiplier: Math.max(0, 1 + bonuses.xp_multiplier),
@@ -1033,7 +1091,34 @@ export function useLoot(state, content, lootId, random = Math.random) {
     if (!target) {
       throw new Error("The selected monster is unavailable.");
     }
-    state.monsterHp -= item.effectValue;
+
+    // Get damage breakdown for the item using the same index-mapping logic
+    const dummyItemState = { upgrades: { [item.id]: state.upgrades?.[item.id] ?? 0 } };
+    const dmgBreakdown = getItemDamageBreakdown(dummyItemState, item, content);
+    let physDmg = dmgBreakdown.physical;
+    let magicDmg = dmgBreakdown.magic;
+    let fireDmg = dmgBreakdown.fire;
+    let lightningDmg = dmgBreakdown.lightning;
+    let poisonDmg = dmgBreakdown.poison;
+
+    const monsterNotes = (target.notes ?? target.Notes ?? "").toLowerCase();
+    if (monsterNotes.includes("magic resist")) {
+      magicDmg = 0;
+    }
+    if (monsterNotes.includes("fire resist")) {
+      fireDmg = 0;
+    }
+    if (monsterNotes.includes("lightning resist")) {
+      lightningDmg = 0;
+    }
+    if (monsterNotes.includes("poison resist")) {
+      poisonDmg = 0;
+    }
+
+    const netDamage = physDmg + magicDmg + fireDmg + lightningDmg + poisonDmg;
+    state.monsterHp -= netDamage;
+
+    // Check if enemy is dead
     if (state.monsterHp <= 0) {
       state.monsterHp = 0; // Lock at 0 so it renders empty
       grantKillRewards(state, content, target, random);
@@ -1418,7 +1503,30 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
     }
     
     // Damage enemy
-    state.monsterHp -= stats.damage;
+    //state.monsterHp -= stats.damage;
+    // Damage enemy with type breakdown & resistance check
+    let physDmg = stats.physicalDamage;
+    let magicDmg = stats.magicDamage;
+    let fireDmg = stats.fireDamage;
+    let lightningDmg = stats.lightningDamage;
+    let poisonDmg = stats.poisonDamage;
+
+    const monsterNotes = (target.notes ?? target.Notes ?? "").toLowerCase();
+    if (monsterNotes.includes("magic resist")) {
+      magicDmg = 0;
+    }
+    if (monsterNotes.includes("fire resist")) {
+      fireDmg = 0;
+    }
+    if (monsterNotes.includes("lightning resist")) {
+      lightningDmg = 0;
+    }
+    if (monsterNotes.includes("poison resist")) {
+      poisonDmg = 0;
+    }
+
+    const netDamage = physDmg + magicDmg + fireDmg + lightningDmg + poisonDmg;
+    state.monsterHp -= netDamage;
 
     // Damage self (negatively)
     if (stats.selfDamage > 0 && !state.godMode) {

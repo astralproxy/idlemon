@@ -3,6 +3,9 @@ import { parseCsv } from "./csv.js";
 const SKILL_ABILITIES = new Map([
   ["attack", "damage_flat"],
   ["magic", "damage_flat"],
+  ["fire", "damage_flat"],
+  ["lightning", "damage_flat"],
+  ["poison", "damage_flat"],
   ["defend", "defense_flat"],
   ["heal", "heal"],
   ["revive", "revive"],
@@ -55,7 +58,9 @@ const SCHEMAS = {
       }
 
       const effectRaw = row["Skill Effect"] ? row["Skill Effect"].trim() : "";
-      const effectParts = effectRaw === "" ? [] : effectRaw.split(/,\s*|[;|]/).map((s) => s.trim()).filter(Boolean);
+      // Strip outer quotes if the entire cell was wrapped in quotes (e.g. "12,5")
+      const cleanedEffectRaw = effectRaw.replace(/^["']|["']$/g, "");
+      const effectParts = cleanedEffectRaw === "" ? [] : cleanedEffectRaw.split(/,\s*|[;|]/).map((s) => s.trim().replace(/^["']|["']$/g, "")).filter(Boolean);
 
       const skillEffects = skills.map((sk, idx) => parseSingleSkillEffect(effectParts[idx] ?? "", sk));
       const primarySkill = skills[0] ?? "";
@@ -264,7 +269,19 @@ export function validateContent(content) {
   const warnings = [];
   const lootNames = new Set(content.loot.map((item) => item.name));
   const materialNames = new Set(content.materials.map((item) => item.name));
+  
   const skillsByName = new Map(content.skills.map((skill) => [skill.name.toLowerCase(), skill]));
+
+  // Automatically register any skill present in SKILL_ABILITIES even if missing from the CSV sheet
+  for (const [skillName, effect] of SKILL_ABILITIES.entries()) {
+    if (!skillsByName.has(skillName)) {
+      const capitalized = skillName.charAt(0).toUpperCase() + skillName.slice(1);
+      const dummySkill = { id: slug(capitalized), name: capitalized, effect };
+      skillsByName.set(skillName, dummySkill);
+      content.skills.push(dummySkill);
+    }
+  }
+
   for (const item of content.loot) {
     if (item.skill) {
       const skill = skillsByName.get(item.skill.toLowerCase());
@@ -277,6 +294,7 @@ export function validateContent(content) {
       }
     }
   }
+
   for (const monster of content.monsters) {
     const missingLoot = monster.lootNames.filter((name) => !lootNames.has(name));
     if (missingLoot.length > 0) {
@@ -303,9 +321,6 @@ export function validateContent(content) {
       }
       item.skills = validatedSkills;
       item.skill = validatedSkills[0] ?? "";
-
-      // Optional override for item description
-      //item.description = validatedSkills.length > 0 ? `Associated skills: ${validatedSkills.join(", ")}` : "Collectible loot item";
     }
   }
   

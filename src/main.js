@@ -32,6 +32,7 @@ import {
   revivePlayer,
   restoreStateFromKey,
   selectMonster,
+  getItemDamageBreakdown,
   sellMaterial,
   sellLoot,
   unequipLoot,
@@ -185,6 +186,7 @@ const elements = {
   monsterName: document.querySelector("#monster-name"),
   monsterHealth: document.querySelector("#monster-health"),
   monsterHealthMeter: document.querySelector("#monster-health-meter"),
+  monsterResistances: document.querySelector("#monster-resistances"),
   monsterReward: document.querySelector("#monster-reward"),
   lootCheckDebug: document.querySelector("#loot-check-debug"),
   quickItemsSection: document.querySelector("#quick-items-section"),
@@ -498,6 +500,38 @@ function lootEffectText(item, st = state) {
     return "No associated skill";
   }
 
+  // const effects = getItemEffects(st, item);
+  // const formatter = item.slot === "" ? numberFormat : numberFormatDecimal;
+  // If the item is a weapon or deals flat damage, show the damage breakdown cleanly
+  // Check if any skill relates to damage or weapon slots
+  const isWeapon = WEAPON_SLOTS.has((item.slot ?? "").toLowerCase()) 
+    || skills.some(sk => {
+        const lower = sk.toLowerCase();
+        return lower === "attack" || lower.includes("magic") || lower.includes("fire") || lower.includes("lightning") || lower.includes("poison");
+      });
+  if (isWeapon && content) {
+    const breakdown = getItemDamageBreakdown(st, item, content);
+    const parts = [];
+    if (breakdown.physical > 0) parts.push(`Phys: ${numberFormat.format(breakdown.physical)}`);
+    if (breakdown.magic > 0) parts.push(`Magic: ${numberFormat.format(breakdown.magic)}`);
+    if (breakdown.fire > 0) parts.push(`Fire: ${numberFormat.format(breakdown.fire)}`);
+    if (breakdown.lightning > 0) parts.push(`Lightning: ${numberFormat.format(breakdown.lightning)}`);
+    if (breakdown.poison > 0) parts.push(`Poison: ${numberFormat.format(breakdown.poison)}`);
+    
+    if (parts.length > 0) {
+      let result = `ATK (${parts.join(", ")})`;
+      const special = getSpecialItemBonuses(st, content, item);
+      if (special.damage > 0 && special.reason) {
+        result += `\n+${numberFormat.format(special.damage)} dmg from ${special.reason}`;
+      }
+      if (special.selfDamage < 0) {
+        result += `\nSelf-damage: ${Math.abs(special.selfDamage)} HP per attack`;
+      }
+      return result;
+    }
+  }
+
+  // Fallback for non-weapon skills (heal, defense, etc.)
   const effects = getItemEffects(st, item);
   const formatter = item.slot === "" ? numberFormat : numberFormatDecimal;
 
@@ -507,10 +541,7 @@ function lootEffectText(item, st = state) {
   const extraReason = special.reason;
 
   const baseText = skills.map((skName, idx) => {
-    const eff = effects[idx];
-    const skill = content?.skills.find((candidate) => candidate.name.toLowerCase() === skName.toLowerCase());
-    
-    // Render standard base effect value without the inline bonus string
+    const eff = effects[idx] ?? effects[0];
     const effectValueStr = eff.effectIsPercentage
       ? `${formatter.format(eff.effectValue)}%`
       : formatter.format(eff.effectValue);
@@ -817,7 +848,78 @@ function render() {
   elements.compactPlayerHp.classList.toggle("is-low-hp", hpPercent < 20);
   //elements.compactPlayerArmor.textContent = numberFormat.format(stats.defense);
   elements.compactPlayerArmor.textContent = `${numberFormatDecimal.format(stats.defense)} + ${stats.defensePercent}%`;
-  elements.compactPlayerDamage.textContent = numberFormatDecimal.format(stats.damage);
+
+  // Parse target monster resistances if active
+  const targetMonster = content?.monsters.find((m) => m.id === state?.targetMonsterId);
+  const monsterNotes = (targetMonster?.notes ?? targetMonster?.Notes ?? "").toLowerCase();
+  const resistedElements = new Set(["magic", "fire", "lightning", "poison", "physical"].filter((el) => monsterNotes.includes(el)));
+
+  // Format multi-line damage breakdown for the expanded Player Stats panel
+  const damageBreakdown = {
+    physical: stats.physicalDamage ?? stats.damage,
+    magic: stats.magicDamage ?? 0,
+    fire: stats.fireDamage ?? 0,
+    lightning: stats.lightningDamage ?? 0,
+    poison: stats.poisonDamage ?? 0,
+  };
+
+  const rawParts = [
+    { key: "physical", label: "Phys", val: damageBreakdown.physical },
+    { key: "magic", label: "Magic", val: damageBreakdown.magic },
+    { key: "fire", label: "Fire", val: damageBreakdown.fire },
+    { key: "lightning", label: "Lightning", val: damageBreakdown.lightning },
+    { key: "poison", label: "Poison", val: damageBreakdown.poison },
+  ];
+
+  let effectiveDamage = 0;
+  const expandedParts = rawParts
+    .filter((p) => p.val > 0)
+    .map((p) => {
+      const isResisted = resistedElements.has(p.key);
+      if (!isResisted) {
+        effectiveDamage += p.val;
+      }
+      return {
+        label: `${p.label}: ${numberFormatDecimal.format(p.val)}`,
+        isResisted,
+      };
+    });
+
+  if (expandedParts.length === 0) {
+    const physVal = stats.damage;
+    const isResisted = resistedElements.has("physical");
+    if (!isResisted) {
+      effectiveDamage += physVal;
+    }
+    expandedParts.push({
+      label: `Phys: ${numberFormatDecimal.format(physVal)}`,
+      isResisted,
+    });
+  }
+
+  // Set effective (net) damage on both compact and expanded view text elements
+  elements.compactPlayerDamage.textContent = numberFormatDecimal.format(effectiveDamage);
+  elements.damage.textContent = numberFormatDecimal.format(effectiveDamage);
+
+  // Toggle resistance class on total damage if any active damage type is resisted
+  const hasResistedDamage = expandedParts.some((p) => p.isResisted);
+  elements.compactPlayerDamage.classList.toggle("damage-resisted", hasResistedDamage);
+  elements.damage.classList.toggle("damage-resisted", hasResistedDamage);
+
+  // Populate the breakdown container cleanly with elements
+  const breakdownContainer = document.querySelector("#player-damage-breakdown");
+  if (breakdownContainer) {
+    breakdownContainer.replaceChildren();
+    for (const part of expandedParts) {
+      const line = document.createElement("span");
+      line.textContent = part.label;
+      if (part.isResisted) {
+        line.className = "damage-resisted";
+      }
+      breakdownContainer.append(line);
+    }
+  }
+  
   if (elements.playerStatsDetails) elements.playerStatsDetails.hidden = playerStatsCollapsed;
   if (elements.playerStatsCompact) elements.playerStatsCompact.hidden = !playerStatsCollapsed;
   if (elements.playerStatsToggle) {
@@ -1033,6 +1135,18 @@ function render() {
     elements.prepareMonsterHealthMeter.style.width = `${healthPercent}%`;
     elements.prepareMonsterHealthMeter.style.backgroundColor = `hsl(${Math.round(healthPercent * 1.2)} 75% 45%)`;
     elements.prepareMonsterHealthMeter.parentElement.setAttribute("aria-valuenow", String(Math.floor(healthPercent)));
+
+    const monsterNotes = (target.notes ?? target.Notes ?? "").toLowerCase();
+    const resistances = [];
+    if (monsterNotes.includes("fire resist")) resistances.push("Fire Resist");
+    if (monsterNotes.includes("magic resist")) resistances.push("Magic Resist");
+    if (monsterNotes.includes("lightning resist")) resistances.push("Lightning Resist");
+    if (monsterNotes.includes("poison resist")) resistances.push("Poison Resist");
+    const resistanceText = resistances.length > 0 ? `Resistances: ${resistances.join(", ")}` : "";
+    if (elements.monsterResistances) {
+      elements.monsterResistances.textContent = resistanceText;
+      elements.monsterResistances.hidden = !resistanceText;
+    }
 
     const rewardsText = itemRewards.length > 0 ? itemRewards.join(", ") : "";
     elements.monsterReward.textContent = rewardsText ? `Rewards: ${rewardsText}` : "Rewards: none";
