@@ -1921,6 +1921,21 @@ footer p {
     font-size: clamp(1rem, 4.4vw, 1.4rem);
   }
 
+  .damage-breakdown-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    font-size: 0.78rem;
+    line-height: 1.25;
+    color: inherit;
+    margin: 2px 0 4px 0;
+  }
+
+  .damage-resisted {
+    color: var(--warning);
+    font-style: italic;
+  }
+
   .summary-card .muted {
     font-size: 0.62rem;
     line-height: 1.3;

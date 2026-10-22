@@ -118,6 +118,7 @@
                 <span id="monster-health-meter"></span>
                 <span id="monster-health" class="monster-health-label"></span>
               </div>
+              <p id="monster-resistances" class="muted"></p>
               <p id="monster-reward" class="muted"></p>
             </div>
             <div id="boss-killed-card" class="boss-killed-card" hidden>
@@ -171,7 +172,7 @@
                 <p id="player-xp" class="muted"></p>
               </article>
               <article class="panel summary-card">
-                <span class="summary-label">HP - DEFENSE</span>
+                <span class="summary-label">HP - DEF</span>
                 <span><strong class="summary-value"><span id="player-hp">400</span><span class="stat-divider"> / </span><span id="player-max-hp">400</span><span class="stat-divider"></span>
                   <br></span><span id="player-armor">0</span></strong>
                 <span class="muted">(from equipment)</span>
@@ -179,6 +180,7 @@
               <article class="panel summary-card">
                 <span class="summary-label">DPS</span>
                 <strong id="player-damage" class="summary-value">1</strong>
+                <div id="player-damage-breakdown" class="damage-breakdown-list"></div>
                 <span class="muted">(damage per second)</span>
               </article>
             </div>
