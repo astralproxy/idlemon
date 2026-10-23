@@ -154,12 +154,18 @@
             <span>DPS: <strong id="compact-player-damage">1</strong></span>
           </div>
           <div id="player-stats-details">
-            <div class="player-bars-container" style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px;">
-              <div id="player-hp-container" class="meter player-hp-meter" role="progressbar" aria-label="Player HP" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" style="background: #171717; height: 12px; border-radius: 0;">
-                <span id="player-hp-meter" style="background: #a80000; width: 100%; border-radius: 0;"></span>
+            <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 12px;">
+              <div class="player-stats-icon-container">
+                <img src="art/humanity-ring.webp" alt="" class="player-stats-icon">
+                <img src="art/hum0.webp" alt="" id="player-humanity-icon" class="player-stats-icon overlay-icon">
               </div>
-              <div id="player-stamina-container" class="meter player-stamina-meter" role="progressbar" aria-label="Player Stamina" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" style="background: #171717; height: 12px; border-radius: 0;">
-                <span id="player-stamina-meter" style="background: #38761d; width: 100%; border-radius: 0;"></span>
+              <div class="player-bars-container" style="display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0;">
+                <div id="player-hp-container" class="meter player-hp-meter" role="progressbar" aria-label="Player HP" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" style="background: #171717; height: 12px; border-radius: 0;">
+                  <span id="player-hp-meter" style="background: #a80000; width: 100%; border-radius: 0;"></span>
+                </div>
+                <div id="player-stamina-container" class="meter player-stamina-meter" role="progressbar" aria-label="Player Stamina" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" style="background: #171717; height: 12px; border-radius: 0;">
+                  <span id="player-stamina-meter" style="background: #38761d; width: 100%; border-radius: 0;"></span>
+                </div>
               </div>
             </div>
             <div class="summary-grid" aria-label="Player Progress">

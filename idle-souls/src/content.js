@@ -8,6 +8,7 @@ const SKILL_ABILITIES = new Map([
   ["poison", "damage_flat"],
   ["defend", "defense_flat"],
   ["heal", "heal"],
+  ["stamina", "stamina"],
   ["revive", "revive"],
   ["flee", "flee"],
 ]);
