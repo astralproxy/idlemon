@@ -22,6 +22,7 @@ import {
   getMonsterHealth, getMonsterDamage,
   experienceForNextLevel,
   getPlayerMaxHp,
+  getHumanity,
   getSpecialItemBonuses,
   getPlayerStats,
   getMaxItemCount, isItemCountMaxed,
@@ -162,6 +163,7 @@ const elements = {
   currencyCount: document.querySelector("#currency-count"),
   hp: document.querySelector("#player-hp"),
   hpMax: document.querySelector("#player-max-hp"),
+  playerHumanityIcon: document.querySelector("#player-humanity-icon"),
   playerHpContainer: document.querySelector("#player-hp-container"),
   playerHpMeter: document.querySelector("#player-hp-meter"),
   playerStaminaContainer: document.querySelector("#player-stamina-container"),
@@ -814,7 +816,7 @@ function render() {
   elements.inventoryGrid.classList.toggle("is-shop", state.activeTab === "shop");
   elements.playerStatsPanel.hidden = state.activeTab === "shop";
   elements.level.textContent = String(state.level);
-  elements.xp.textContent = `Next: ${numberFormat.format(state.xp)} / ${numberFormat.format(xpNeeded)} XP`;
+  elements.xp.textContent = `${numberFormat.format(state.xp)} / ${numberFormat.format(xpNeeded)} XP`;
   elements.xpMeter.style.width = `${Math.min(100, (state.xp / xpNeeded) * 100)}%`;
   elements.xpMeter.parentElement.setAttribute("aria-valuemax", String(xpNeeded));
   elements.xpMeter.parentElement.setAttribute("aria-valuenow", String(Math.floor(state.xp)));
@@ -826,6 +828,9 @@ function render() {
   elements.hp.textContent = numberFormat.format(playerHp);
   elements.hpMax.textContent = numberFormat.format(playerHpMax);
   
+  const humanityVal = getHumanity(state, content);
+  if (elements.playerHumanityIcon) elements.playerHumanityIcon.src = `art/hum${humanityVal}.webp`;
+
   const hpContainerPct = Math.max(0, Math.min(100, (playerHpMax / PLAYER_MAX_HP_CAP) * 100));
   const hpFillPct = Math.max(0, Math.min(100, (playerHp / playerHpMax) * 100));
   if (elements.playerHpContainer) elements.playerHpContainer.style.width = `${hpContainerPct}%`;
@@ -864,11 +869,11 @@ function render() {
   };
 
   const rawParts = [
-    { key: "physical", label: "Phys", val: damageBreakdown.physical },
-    { key: "magic", label: "Magic", val: damageBreakdown.magic },
-    { key: "fire", label: "Fire", val: damageBreakdown.fire },
-    { key: "lightning", label: "Lightning", val: damageBreakdown.lightning },
-    { key: "poison", label: "Poison", val: damageBreakdown.poison },
+    { key: "physical", label: "- Phys", val: damageBreakdown.physical },
+    { key: "magic", label: "- Magic", val: damageBreakdown.magic },
+    { key: "fire", label: "- Fire", val: damageBreakdown.fire },
+    { key: "lightning", label: "- Ltng", val: damageBreakdown.lightning },
+    { key: "poison", label: "- Poison", val: damageBreakdown.poison },
   ];
 
   let effectiveDamage = 0;
@@ -1260,7 +1265,7 @@ function render() {
     const effA = getEffect(a);
     const effB = getEffect(b);
 
-    const rank = (eff) => (eff === "flee" ? 1 : eff === "damage_flat" ? 2 : eff === "heal" ? 3 : 4);
+    const rank = (eff) => (eff === "flee" ? 1 : eff === "damage_flat" ? 2 : eff === "heal" ? 3 : eff === "stamina" ? 4 : 5);
     const rA = rank(effA);
     const rB = rank(effB);
 
@@ -1819,7 +1824,8 @@ function openUpgradeDialog(material) {
   if (!hasEnoughSouls) {
     messageText += `<span style="color: var(--warning); font-style: italic;"> (not enough souls)</span>`;
   }
-  messageText += `\n<span class="muted">Select item to upgrade. Upgrading increases primary stat by 10% per level.</span>`;
+  messageText += `\n<span class="muted">Select item to upgrade to increase primary stat by 10% per level. Equipped items are <strong><span style="color: #ccccaa;">highlighted</span></strong>.</span>`;
+  //messageText += `\n<span class="muted">Select item to upgrade. Upgrading increases primary stat by 10% per level.</span>`;
   elements.craftDialogMessage.innerHTML = messageText.replace(/\n/g, '<br>');
   //elements.craftDialogMessage.textContent = `Select item to upgrade. Upgrading increases primary stat by 10% per level.`;
   
@@ -1843,11 +1849,16 @@ function openUpgradeDialog(material) {
     const cost = isMax ? 0 : getUpgradeCost(lootItem, level + 1);
     //const canAfford = matInventory >= cost;
     const canAfford = matInventory >= cost && hasEnoughSouls;
-
+  
     const optionCard = document.createElement("button");
     optionCard.type = "button";
     optionCard.className = "list-item loot-item crafted-loot-item";
     optionCard.disabled = isMax || !canAfford;
+
+    const isEquipped = Object.values(state.gear ?? {}).includes(lootItem.id);
+    if (isEquipped) {
+      optionCard.style.border = "3px solid #ccccaa";
+    }
 
     const titleSpan = createTextElement("span", `item-title loot-rarity rarity-${lootItem.rarity.toLowerCase()}`, itemDisplayName(lootItem));
     const detailsSpan = createTextElement("span", "muted item-description",

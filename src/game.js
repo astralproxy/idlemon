@@ -5,8 +5,12 @@ export const PLAYER_STARTING_MAX_HP = 400;
 export const PLAYER_MAX_HP_CAP = 1525;
 export const PLAYER_STARTING_MAX_STAMINA = 91;
 export const PLAYER_MAX_STAMINA_CAP = 160;
+
 const PLAYER_STAMINA_PER_HIT = 30;
-const PLAYER_STAMINA_REGEN_RATE = 15;
+const PLAYER_STAMINA_REGEN_RATE = 45;
+const STAMINA_1H = 15; // weapon, offhand, or shield
+const STAMINA_2H = 55;
+
 export const ESTUS_BASE_COUNT = 5;
 export const ITEM_MAX_COUNT = 9;
 export const MAX_MATERIALS = 99;
@@ -1084,9 +1088,16 @@ export function useLoot(state, content, lootId, random = Math.random) {
       ? maxHp * item.effectValue / 100
       : item.effectValue;
     state.hp = Math.min(maxHp, state.hp + healing);
-  }
-  else if (skill.effect === "damage_flat")
-  {
+  } else if (skill.effect === "stamina") {
+    const maxStamina = state.maxStamina ?? PLAYER_STARTING_MAX_STAMINA;
+    if ((state.stamina ?? maxStamina) >= maxStamina) {
+      return false;
+    }
+    const staminaRestore = item.effectIsPercentage
+      ? maxStamina * item.effectValue / 100
+      : item.effectValue;
+    state.stamina = Math.min(maxStamina, (state.stamina ?? maxStamina) + staminaRestore);
+  } else if (skill.effect === "damage_flat") {
     const target = content.monsters.find((monster) => monster.id === state.targetMonsterId);
     if (!target) {
       throw new Error("The selected monster is unavailable.");
@@ -1185,6 +1196,10 @@ export function canUseLoot(state, content, lootId) {
   }
   if (skill.effect === "heal") {
     return !state.gameOver && state.hp < getPlayerMaxHp(state.level);
+  }
+  if (skill.effect === "stamina") {
+    const maxStamina = state.maxStamina ?? PLAYER_STARTING_MAX_STAMINA;
+    return (state.stamina ?? maxStamina) < maxStamina;
   }
   if (skill.effect === "damage_flat") {
     const isMonsterActive = Boolean(state.targetMonsterId) && !state.awaitingMonsterSelection && !state.gameOver;
@@ -1542,7 +1557,9 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
 
     // Consume player stamina every hit
     const maxStamina = state.maxStamina ?? PLAYER_STARTING_MAX_STAMINA;
-    state.stamina = Math.max(0, (state.stamina ?? maxStamina) - PLAYER_STAMINA_PER_HIT);
+    //state.stamina = Math.max(0, (state.stamina ?? maxStamina) - PLAYER_STAMINA_PER_HIT);
+    const staminaCost = isTwoHandEquipped(state, content) ? STAMINA_2H : STAMINA_1H;
+    state.stamina = Math.max(0, (state.stamina ?? maxStamina) - staminaCost);
 
     // Fatal hit
     if (state.monsterHp <= 0) {
