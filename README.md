@@ -1,4 +1,4 @@
-# Idle Souls
+# IDLE SOULS
 
 Idle Souls is a small text-based incremental game played in a web browser. Pick enemies to fight and kill them to gain experience, loot, and materials to get stronger. The game does not have a traditional attack button but has a few other ways for you to control the game's flow. The game only continues for a few seconds when you leave the tab, but be sure to stop in a safe place!
 
