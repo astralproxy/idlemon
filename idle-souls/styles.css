@@ -1375,9 +1375,16 @@ button:focus-visible {
 
 .list-item.loot-item {
   display: grid;
-  grid-template-columns: 60% 40px 1fr; /* 1st column takes remaining space, 2nd column holds the badge at a fixed width, 3rd holds the button */
+  grid-template-columns: minmax(0, 1fr) 30px 70px; /* 1st column takes remaining space, 2nd column holds the badge at a fixed width, 3rd holds the button */
   align-items: center;
   gap: 12px;
+}
+
+.list-item.loot-item .button {
+  width: 100%; /* Fills the fixed column width */
+  text-align: center;
+  padding-left: 3px;
+  padding-right: 3px;
 }
 
 /* Ensure elements inside the grid don't break layout */
@@ -1537,7 +1544,9 @@ button:focus-visible {
 
 .item-title {
   margin-bottom: 3px;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   font-size: clamp(0.8rem, 8cqw, 1rem); /* scale to fit on line */
 }
 
