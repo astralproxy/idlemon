@@ -776,6 +776,17 @@ export function getItemDamageBreakdown(state, item, content) {
   let poison = 0;
 
   const skills = item.skills?.length ? item.skills : (item.skill ? [item.skill] : []);
+  
+  // Only treat as a weapon breakdown if at least one skill is explicitly offensive
+  const hasOffensiveSkill = skills.some(sk => {
+    const lower = sk.toLowerCase();
+    return lower === "attack" || lower.includes("magic") || lower.includes("fire") || lower.includes("lightning") || lower.includes("poison");
+  });
+
+  if (!hasOffensiveSkill) {
+    return { physical: 0, magic: 0, fire: 0, lightning: 0, poison: 0 };
+  }
+
   const effects = getItemEffects(state, item);
 
   // Flatten all effect values, splitting any comma-separated strings
