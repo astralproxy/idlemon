@@ -4,12 +4,11 @@ export const SAVE_VERSION = 13;
 export const PLAYER_STARTING_MAX_HP = 400;
 export const PLAYER_MAX_HP_CAP = 1525;
 export const PLAYER_STARTING_MAX_STAMINA = 91;
-export const PLAYER_MAX_STAMINA_CAP = 160;
+export const PLAYER_MAX_STAMINA_CAP = 140; // not 160, but +1 every 2 levels
 
-const PLAYER_STAMINA_PER_HIT = 30;
-const PLAYER_STAMINA_REGEN_RATE = 45;
+const PLAYER_STAMINA_REGEN_RATE = 25;
 const STAMINA_1H = 15; // weapon, offhand, or shield
-const STAMINA_2H = 55;
+const STAMINA_2H = 45;
 
 export const ESTUS_BASE_COUNT = 5;
 export const ITEM_MAX_COUNT = 9;
@@ -132,6 +131,13 @@ export function getPlayerMaxHp(level) {
   const extraLevels = Math.max(0, l - 30);
   const hp = PLAYER_STARTING_MAX_HP + (standardLevels * 15) + (extraLevels * 10);
   return Math.min(PLAYER_MAX_HP_CAP, hp);
+}
+
+export function getPlayerMaxStamina(level) {
+  const l = Math.max(1, level);
+  const increases = Math.floor((l - 1) / 2);
+  // Increases by 1 stamina every 2 levels
+  return Math.min(PLAYER_MAX_STAMINA_CAP, PLAYER_STARTING_MAX_STAMINA + increases);
 }
 
 export function resetSavedGame(storage = globalThis.localStorage) {
@@ -498,7 +504,7 @@ export function createInitialState(content, now = Date.now()) {
     xp: 0,
     hp: getPlayerMaxHp(1),
     stamina: PLAYER_STARTING_MAX_STAMINA,
-    maxStamina: PLAYER_STARTING_MAX_STAMINA,
+    maxStamina: getPlayerMaxStamina(1),
     playtime: 0, // Track total play time in seconds
     ngPlus: 0,
     autoHealEnabled: false,
@@ -568,6 +574,7 @@ export function parseSavedState(serialized, content) {
     throw new Error("The saved experience value is invalid.");
   }
   const maxHp = getPlayerMaxHp(state.level);
+  const maxStamina = getPlayerMaxStamina(state.level);
   const hp = state.hp ?? maxHp;
   const playtime = isNonNegativeNumber(state.playtime) ? state.playtime : 0;
   const ngPlus = Number.isInteger(state.ngPlus) ? state.ngPlus : 0;
@@ -736,6 +743,8 @@ export function parseSavedState(serialized, content) {
     level: state.level,
     xp: state.xp,
     hp,
+    maxStamina,
+    stamina: Math.min(state.stamina ?? maxStamina, maxStamina),
     playtime,
     ngPlus,
     autoHealEnabled,
@@ -800,20 +809,22 @@ export function getItemDamageBreakdown(state, item, content) {
     }
   }
 
-  // Map values index-by-index to skills in order
+  // Map values index-by-index to skills in order (ignoring defensive/utility skills)
   for (let i = 0; i < skills.length; i++) {
     const skName = (skills[i] || "").toLowerCase();
     const val = allValues[i] !== undefined ? allValues[i] : (allValues[0] || 0);
+    const skillObj = content?.skills?.find((candidate) => candidate.name.toLowerCase() === skName);
+    const effectType = skillObj?.effect;
 
-    if (skName.includes("magic")) {
+    if (skName.includes("magic") || effectType === "magic") {
       magic += val;
-    } else if (skName.includes("fire")) {
+    } else if (skName.includes("fire") || effectType === "fire") {
       fire += val;
-    } else if (skName.includes("lightning")) {
+    } else if (skName.includes("lightning") || effectType === "lightning") {
       lightning += val;
-    } else if (skName.includes("poison")) {
+    } else if (skName.includes("poison") || effectType === "poison") {
       poison += val;
-    } else {
+    } else if (skName.includes("attack") || skName.includes("physical") || effectType === "damage_flat" || (!skillObj && skName)) {
       physical += val;
     }
   }
@@ -1100,7 +1111,7 @@ export function useLoot(state, content, lootId, random = Math.random) {
       : item.effectValue;
     state.hp = Math.min(maxHp, state.hp + healing);
   } else if (skill.effect === "stamina") {
-    const maxStamina = state.maxStamina ?? PLAYER_STARTING_MAX_STAMINA;
+    const maxStamina = state.maxStamina ?? getPlayerMaxStamina(state.level);
     if ((state.stamina ?? maxStamina) >= maxStamina) {
       return false;
     }
@@ -1209,7 +1220,7 @@ export function canUseLoot(state, content, lootId) {
     return !state.gameOver && state.hp < getPlayerMaxHp(state.level);
   }
   if (skill.effect === "stamina") {
-    const maxStamina = state.maxStamina ?? PLAYER_STARTING_MAX_STAMINA;
+    const maxStamina = state.maxStamina ?? getPlayerMaxStamina(state.level);
     return (state.stamina ?? maxStamina) < maxStamina;
   }
   if (skill.effect === "damage_flat") {
@@ -1335,6 +1346,9 @@ function grantExperience(state, amount) {
   while (state.xp >= experienceForNextLevel(state.level)) {
     state.xp -= experienceForNextLevel(state.level);
     state.level += 1;
+
+    state.maxStamina = getPlayerMaxStamina(state.level);
+    state.stamina = state.maxStamina; // Refill stamina on level up (optional, or let it scale)
   }
 }
 
@@ -1342,6 +1356,10 @@ function grantKillRewards(state, content, monster, random = Math.random) {
   const stats = getPlayerStats(state, content);
   state.kills[monster.id] = (state.kills[monster.id] ?? 0) + 1;
   grantExperience(state, Math.max(1, Math.floor(monster.xp * stats.xpMultiplier)));
+
+  // Fully regenerate stamina upon defeating a monster or boss
+  const maxStamina = state.maxStamina ?? getPlayerMaxStamina(state.level);
+  state.stamina = maxStamina;
 
   // Grant souls from the monster's Souls column with multiplier
   // Souls multiplier scales with NG+ level (NG+0 = 1x, NG+4 = 4x, etc.)
@@ -1472,10 +1490,6 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
 
   const stats = getPlayerStats(state, content);
 
-  // Regenerate stamina each tick, even out of combat
-  // TODO: get actual max stamina based on level
-  state.stamina = Math.min(PLAYER_STARTING_MAX_STAMINA, (state.stamina ?? 0) + PLAYER_STAMINA_REGEN_RATE);
-
   // Apply passive healing from equipped gear (but not weapons)
   if (stats.gearHealing > 0 && state.hp > 0 && !state.gameOver) {
     const maxHp = getPlayerMaxHp(state.level);
@@ -1501,9 +1515,27 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
 
   for (let index = 0; index < attacks; index += 1)
   {
+    // Stamina Regen on tick between attack sequences
+    if (state.monsterHp !== -1) {
+      const maxStamina = state.maxStamina ?? PLAYER_STARTING_MAX_STAMINA;
+      const regenAmount = state.doubleStaminaNextTick ? PLAYER_STAMINA_REGEN_RATE * 2 : PLAYER_STAMINA_REGEN_RATE;
+      state.doubleStaminaNextTick = false;
+
+      state.stamina = Math.min(maxStamina, (state.stamina ?? 0) + regenAmount);
+
+      // If regen brings stamina back above or equal to 0, vulnerability is cleared
+      if (state.stamina >= 0) {
+        state.isVulnerable = false;
+      }
+    }
+
     // Reload the monster and skip attacking on this tick so it starts at full health
     if (state.monsterHp === -1) {
       state.monsterHp = getMonsterHealth(target, state.ngPlus);
+
+      // Fully replenish stamina right when the new monster spawns fresh
+      state.stamina = state.maxStamina ?? PLAYER_STARTING_MAX_STAMINA;
+      
       continue; 
     }
 
@@ -1568,9 +1600,22 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
 
     // Consume player stamina every hit
     const maxStamina = state.maxStamina ?? PLAYER_STARTING_MAX_STAMINA;
-    //state.stamina = Math.max(0, (state.stamina ?? maxStamina) - PLAYER_STAMINA_PER_HIT);
-    const staminaCost = isTwoHandEquipped(state, content) ? STAMINA_2H : STAMINA_1H;
-    state.stamina = Math.max(0, (state.stamina ?? maxStamina) - staminaCost);
+    // Check if both R-Hand and L-Hand are equipped with items (dual wielding / sword + shield)
+    const hasRHand = Boolean(state.gear?.["R-Hand"]);
+    const hasLHand = Boolean(state.gear?.["L-Hand"]);
+    const isDualWielding = hasRHand && hasLHand && !isTwoHandEquipped(state, content);
+
+    // Two-hand costs STAMINA_2H, dual-wielding (R-Hand + L-Hand) costs double STAMINA_1H, otherwise single 1H
+    const staminaCost = isTwoHandEquipped(state, content) 
+      ? STAMINA_2H 
+      : (isDualWielding ? STAMINA_1H * 2 : STAMINA_1H);
+
+    state.stamina = (state.stamina ?? maxStamina) - staminaCost;
+
+    // If stamina drops below 0 from attack, enter negative stamina state
+    if (state.stamina < 0) {
+      state.isVulnerable = true;
+    }
 
     // Fatal hit
     if (state.monsterHp <= 0) {
@@ -1596,10 +1641,21 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
       break; // Stop further attacks so the 0 HP state is displayed
     }
 
-    const incomingDamage =
-      state.godMode ? 0
-      : Math.max(0, getMonsterDamage(target, state.ngPlus) - stats.defense - state.nextHitDefense);
-      //: Math.max(0, target.damage - stats.defense - state.nextHitDefense);
+    let incomingDamage = 0;
+    if (!state.godMode) {
+      const rawMonsterDmg = getMonsterDamage(target, state.ngPlus);
+      
+      // If stamina remained < 0 after regen, take unmitigated health damage (ignore %, keep flat armor defense)
+      if (state.isVulnerable && state.stamina < 0) {
+        incomingDamage = Math.max(0, rawMonsterDmg - stats.defense);
+        state.doubleStaminaNextTick = true; // Guarantee double regen on the next tick
+        state.isVulnerable = false;
+      } else {
+        const mitigatedByFlat = Math.max(0, rawMonsterDmg - stats.defense - state.nextHitDefense);
+        const defensePercent = Math.min(100, stats.defensePercent + (state.nextHitDefensePercent ?? 0));
+        incomingDamage = Math.max(0, mitigatedByFlat * (1 - defensePercent / 100));
+      }
+    }
     
     const defensePercent = Math.min(100, stats.defensePercent + (state.nextHitDefensePercent ?? 0));
     const reducedDamage = Math.max(0, incomingDamage * (1 - defensePercent / 100));

@@ -430,7 +430,8 @@ h3 {
 #compact-player-hp,
 #compact-player-max-hp,
 #compact-player-armor,
-#compact-player-damage {
+#compact-player-damage,
+#compact-player-stamina {
   font-family: Garamond, Georgia, serif;
 }
 
@@ -2047,7 +2048,8 @@ footer p {
   #player-hp,
   #player-max-hp,
   #player-armor,
-  #player-damage {
+  #player-damage,
+  #player-stamina {
     /*font-size: 0.96rem !important;*/
     font-family: Garamond, Georgia, serif !important;
   }

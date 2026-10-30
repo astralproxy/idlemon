@@ -179,6 +179,7 @@ const elements = {
   compactPlayerHpMax: document.querySelector("#compact-player-max-hp"),
   compactPlayerArmor: document.querySelector("#compact-player-armor"),
   compactPlayerDamage: document.querySelector("#compact-player-damage"),
+  compactPlayerStamina: document.querySelector("#compact-player-stamina"),
 
   monsterDropdown: document.querySelector("#monster-dropdown"),
   monsterToggleBtn: document.querySelector("#monster-dropdown .dropdown-toggle"),
@@ -329,16 +330,12 @@ function showItemDescriptionDialog(item) {
 
   const descText = item.description || item.Description || "No description available.";
   
-  // Format metadata lines if item has slot/skill info
-  let metaHtml = "";
-  // if (item.slot) {
-  //   metaHtml += `<div>Item type: ${item.slot}</div>`;
-  // }
+  // Format slot info to appear on the first line inside the body
+  const slotHtml = item.slot ? `<span class="muted">[Slot: ${item.slot}]</span><br>` : "";
 
-  // Construct justified body over ruled background
+  // Construct body starting immediately with slot info (no leading <br>)
   elements.confirmDialogMessage.innerHTML = `
-    ${metaHtml ? `<div class="item-desc-header">${metaHtml}</div>` : ""}
-    <div class="item-desc-body"><br>${descText}</div>
+    <div class="item-desc-body">${slotHtml}<br>${descText}</div>
   `;
 
   elements.confirmDialogYes.textContent = "Close";
@@ -836,12 +833,16 @@ function render() {
   if (elements.playerHpContainer) elements.playerHpContainer.style.width = `${hpContainerPct}%`;
   if (elements.playerHpMeter) elements.playerHpMeter.style.width = `${hpFillPct}%`;
   
-  const staminaVal = state.stamina ?? PLAYER_STARTING_MAX_STAMINA;
+  const staminaVal = Math.max(0, state.stamina ?? PLAYER_STARTING_MAX_STAMINA);
   const maxStamina = state.maxStamina ?? PLAYER_STARTING_MAX_STAMINA;
   const staminaContainerPct = Math.max(0, Math.min(100, (maxStamina / PLAYER_MAX_STAMINA_CAP) * 100));
   const staminaFillPct = Math.max(0, Math.min(100, (staminaVal / maxStamina) * 100));
   if (elements.playerStaminaContainer) elements.playerStaminaContainer.style.width = `${staminaContainerPct}%`;
   if (elements.playerStaminaMeter) elements.playerStaminaMeter.style.width = `${staminaFillPct}%`;
+  const staminaEl = document.querySelector("#player-stamina");
+  if (staminaEl) staminaEl.textContent = numberFormat.format(staminaVal);
+  const maxStaminaEl = document.querySelector("#player-max-stamina");
+  if (maxStaminaEl) maxStaminaEl.textContent = numberFormat.format(maxStamina);
 
   //elements.armor.textContent = numberFormat.format(stats.defense);
   elements.armor.textContent = `${numberFormatDecimal.format(stats.defense)} + ${stats.defensePercent}%`;
@@ -905,6 +906,8 @@ function render() {
   // Set effective (net) damage on both compact and expanded view text elements
   elements.compactPlayerDamage.textContent = numberFormatDecimal.format(effectiveDamage);
   elements.damage.textContent = numberFormatDecimal.format(effectiveDamage);
+
+  elements.compactPlayerStamina.textContent = numberFormat.format(staminaVal);
 
   // Toggle resistance class on total damage if any active damage type is resisted
   const hasResistedDamage = expandedParts.some((p) => p.isResisted);
