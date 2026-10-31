@@ -146,13 +146,13 @@ export function getPlayerMaxHp(level, state = null, content = null) {
 export function getPlayerMaxStamina(level, state = null, content = null) {
   const l = Math.max(1, level);
   const increases = Math.floor((l - 1) / 2);
-  let stamina = PLAYER_STARTING_MAX_STAMINA + increases;
+  let stamina = PLAYER_STARTING_MAX_STAMINA + increases; // Base = 115 at level 49
   
   if (state && content) {
     const special = getSpecialItemBonuses(state, content);
     if (special.staminaMultiplier) {
-      stamina *= special.staminaMultiplier;
-      return Math.round(stamina); // Bypasses PLAYER_MAX_STAMINA_CAP when multiplied
+      stamina *= special.staminaMultiplier; // Should be a flat multiplication (e.g., * 1.2)
+      return Math.round(stamina);
     }
   }
 
@@ -1028,7 +1028,7 @@ export function getPlayerStats(state, content) {
   const hpModified = hpMultiplier !== 1;
 
   // Calculate stamina and apply multipliers
-  const baseMaxStamina = getPlayerMaxStamina(state.level, state, content);
+  const baseMaxStamina = getPlayerMaxStamina(state.level); // don't pass state/content
   const staminaMultiplier = specialBonuses.staminaMultiplier ?? 1;
   const maxStamina = Math.round(baseMaxStamina * staminaMultiplier);
   const staminaModified = staminaMultiplier !== 1;
@@ -1162,6 +1162,14 @@ export function unequipLoot(state, content, slot) {
   }
   delete state.gear[slot];
   state.lootInventory[lootId] = (state.lootInventory[lootId] ?? 0) + 1;
+
+  // clamp stamina to the new max limit immediately
+  const stats = getPlayerStats(state, content);
+  const maxStamina = stats.maxStamina ?? getPlayerMaxStamina(state.level, state, content);
+  if ((state.stamina ?? maxStamina) > maxStamina) {
+    state.stamina = maxStamina;
+  }
+
   return true;
 }
 
@@ -1205,7 +1213,7 @@ export function useLoot(state, content, lootId, random = Math.random) {
       : item.effectValue;
     state.hp = Math.min(maxHp, state.hp + healing);
   } else if (skill.effect === "stamina") {
-    const maxStamina = stats.maxStamina ?? getPlayerMaxStamina(state.level, state, content);
+    const maxStamina = state.maxStamina ?? getPlayerMaxStamina(state.level, state, content);
     if ((state.stamina ?? maxStamina) >= maxStamina) {
       return false;
     }
@@ -1686,16 +1694,27 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
     state.hp = Math.min(maxHp, state.hp + stats.gearHealing);
   }
 
-  // Check if we aren't actively fighting and return early
-  if (state.awaitingMonsterSelection) {
-    return state;
-  }
-
   const elapsed = Math.min(elapsedSeconds, MAX_OFFLINE_SECONDS);
   const attacks = Math.floor(state.attackRemainder + elapsed + Number.EPSILON);
   state.attackRemainder = state.attackRemainder + elapsed - attacks;
   if (state.attackRemainder < 0) {
     state.attackRemainder = 0;
+  }
+
+  // If waiting for monster selection, still process stamina regeneration ticks
+  if (state.awaitingMonsterSelection) {
+    for (let index = 0; index < attacks; index += 1) {
+      const maxStamina = stats.maxStamina ?? getPlayerMaxStamina(state.level, state, content);
+      const regenAmount = state.doubleStaminaNextTick ? PLAYER_STAMINA_REGEN_RATE * 2 : PLAYER_STAMINA_REGEN_RATE;
+      state.doubleStaminaNextTick = false;
+
+      state.stamina = Math.min(maxStamina, (state.stamina ?? 0) + regenAmount);
+
+      if (state.stamina >= 0) {
+        state.isVulnerable = false;
+      }
+    }
+    return state;
   }
 
   let target = content.monsters.find((monster) => monster.id === state.targetMonsterId);
