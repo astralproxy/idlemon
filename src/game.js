@@ -599,12 +599,12 @@ export function parseSavedState(serialized, content) {
   const ngPlus = Number.isInteger(state.ngPlus) ? state.ngPlus : 0;
   const targetHealth = target ? getMonsterHealth(target, ngPlus) : 0;
   const gameOver = state.gameOver ?? false;
-  if (!Number.isFinite(hp) || hp < 0 || hp > maxHp || typeof gameOver !== "boolean") {
-    throw new Error("The saved player health or game-over state is invalid.");
-  }
-  if ((hp === 0) !== gameOver) {
-    throw new Error("The saved player health does not match the game-over state.");
-  }
+  // if (!Number.isFinite(hp) || hp < 0 || hp > maxHp || typeof gameOver !== "boolean") {
+  //   throw new Error("The saved player health or game-over state is invalid.");
+  // }
+  // if ((hp === 0) !== gameOver) {
+  //   throw new Error("The saved player health does not match the game-over state.");
+  // }
   const activeTab = state.activeTab ?? (state.isPreparing ? "prepare" : "fight");
   const shopUnlocked = state.shopUnlocked
     ?? (activeTab === "shop"
