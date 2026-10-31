@@ -11,6 +11,7 @@ const SKILL_ABILITIES = new Map([
   ["stamina", "stamina"],
   ["revive", "revive"],
   ["flee", "flee"],
+  ["special", "special"],
 ]);
 
 export const LOOT_RARITIES = new Map([
@@ -97,6 +98,7 @@ const SCHEMAS = {
         value: number(row.Value, "Value", 0),
         uses: requiredText(row.Uses, "Uses"),
         crafted: row.Crafted?.trim() ?? "",
+        description: row.Description ? row.Description.trim() : "",
         notes: row.Notes?.trim() ?? "",
       };
     },
@@ -112,8 +114,8 @@ function parseSingleSkillEffect(value, skill) {
   if (!effect.endsWith("%")) {
     return { effectValue: number(effect, "Skill Effect", 0), effectIsPercentage: false };
   }
-  if (!["defend", "heal"].includes(sk)) {
-    throw new Error(`"Skill Effect" percentages are only supported for Defend and Heal.`);
+  if (!["defend", "heal", "attack", "magic", "poison"].includes(sk)) {
+    throw new Error(`"Skill Effect" percentages are only supported for Defend, Heal, Attack, Magic, and Poison.`);
   }
   return {
     effectValue: percentage(effect.slice(0, -1).trim(), "Skill Effect"),
@@ -129,8 +131,8 @@ function parseSkillEffect(value, skill) {
   if (!effect.endsWith("%")) {
     return { effectValue: number(effect, "Skill Effect", 0), effectIsPercentage: false };
   }
-  if (!["defend", "heal"].includes(skill.toLowerCase())) {
-    throw new Error(`"Skill Effect" percentages are only supported for Defend and Heal.`);
+  if (!["defend", "heal", "attack", "magic", "poison"].includes(skill.toLowerCase())) {
+    throw new Error(`"Skill Effect" percentages are only supported for Defend, Heal, Attack, Magic, and Poison.`);
   }
   return {
     effectValue: percentage(effect.slice(0, -1).trim(), "Skill Effect"),

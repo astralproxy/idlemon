@@ -12,7 +12,8 @@
   --muted: #b8b8b8;
   --accent: #f0f0f0;
   --accent-dark: #555555;
-  --warning: #c80808;
+  --warning: #e63131;
+  --warning-good: #31e631; 
   --new-loot: rgb(242, 229, 113);
   --golden: #5e4a2b;
 }
@@ -2032,15 +2033,17 @@ footer p {
     justify-content: flex-start;
   }
 
-  .summary-card > .muted:last-child {
+  /* .summary-card > .muted:last-child {
     margin-top: auto;
-  }
+  } */
 
   .summary-label {
     font-size: 0.72rem;
   }
 
   .summary-value {
+    /* margin-bottom: 0;
+    line-name: 1; */
     font-size: clamp(1rem, 4.4vw, 1.4rem);
   }
 
@@ -2049,9 +2052,29 @@ footer p {
   #player-max-hp,
   #player-armor,
   #player-damage,
-  #player-stamina {
-    /*font-size: 0.96rem !important;*/
+  #player-stamina,
+  #player-max-stamina {
+    font-size: 0.82rem !important;
     font-family: Garamond, Georgia, serif !important;
+  }
+
+  .player-hp-track {
+    position: relative; /* ensures absolute children stay inside the track */
+    overflow: hidden;   /* clips the pattern so it stays rounded inside the bar */
+  }
+
+  .hp-missing-bar {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background: repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.15),
+      rgba(255, 255, 255, 0.15) 2px,
+      rgba(0, 0, 0, 0.3) 2px,
+      rgba(0, 0, 0, 0.3) 4px
+    );
+    pointer-events: none;
   }
 
   .damage-breakdown-list {
