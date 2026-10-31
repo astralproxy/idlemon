@@ -28,7 +28,7 @@
           <h1>Idle Souls</h1>
         </div>
         <div class="header-actions">
-          <button id="ngplus-btn" class="ngplus-btn" type="button" aria-label="Start New Game+" title="Start NG+">+</button>
+          <button id="ngplus-btn" class="ngplus-btn" hidden type="button" aria-label="Start New Game+" title="Start NG+">+</button>
           <button id="menu-toggle" class="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="site-menu" hidden>
             <span></span><span></span><span></span>
           </button>
@@ -45,6 +45,10 @@
         <h2>Unable to start the game</h2>
         <p id="error-message"></p>
         <p class="bag-shop-note">Please ask the author to fix the data above.</p>
+        <br><hr><br>
+        <div style="margin-top: 16px;">
+          <button id="error-reset-game" class="button reset-button" type="button">Reset Game</button>
+        </div>
       </section>
 
       <dialog id="confirm-dialog" class="sell-confirm-dialog" aria-labelledby="confirm-dialog-title">
