@@ -27,7 +27,7 @@ export function isBossItem(item) {
   return (item.notes ?? "").toLowerCase().includes("boss");
 }
 export function isDragonItem(item) {
-  return /dragon/i.test(item.name);
+  return /dragon|drake/i.test(item.name);
 }
 export function isDragonMaterial(material) {
   return material.name.trim().toLowerCase() === "dragon scale";
