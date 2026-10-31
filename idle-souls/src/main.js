@@ -100,6 +100,7 @@ const elements = {
   copyStatus: document.querySelector("#copy-status"),
   errorPanel: document.querySelector("#error-panel"),
   errorMessage: document.querySelector("#error-message"),
+  errorResetGame: document.querySelector("#error-reset-game"),
   
   fightTab: document.querySelector("#fight-tab"),
   prepareTab: document.querySelector("#prepare-tab"),
@@ -2861,6 +2862,7 @@ function resetAndReload() {
 
 elements.resetGame.addEventListener("click", restartGame);
 elements.startOver.addEventListener("click", restartGame);
+elements.errorResetGame?.addEventListener("click", restartGame);
 
 async function startGame() {
   try {
