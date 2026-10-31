@@ -171,8 +171,10 @@
             <div class="summary-grid" aria-label="Player Progress">
               <article class="panel summary-card">
                 <!-- PLAYER Level + XP -->
-                <span class="summary-label">Level</span>
-                <strong id="player-level" class="summary-value">1</strong>
+                <div style="display: flex; justify-content: space-between; align-items: baseline; width: 100%;">
+                  <span class="summary-label" style="margin-bottom: 0;">Level</span>
+                  <strong id="player-level" class="summary-value">1</strong>
+                </div>
                 <div class="meter" role="progressbar" aria-label="Experience to next level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
                   <span id="xp-meter"></span>
                 </div>
@@ -182,17 +184,19 @@
               <article class="panel summary-card">
                 <div class="damage-breakdown-list">
                   <span><strong>H:</strong> <span id="player-hp">400</span> / <span id="player-max-hp">400</span></span>
-                  <span><strong>D:</strong><br><span id="player-armor">0</span></span>
+                  <span><strong>D:</strong> <span id="player-armor">0</span></span>
                   <span><strong>S:</strong> <span id="player-stamina">91</span> / <span id="player-max-stamina">91</span></span>
                 </div>
-                <span class="muted">(from equipment)</span>
+                <!-- <span class="muted">(from equipment)</span> -->
               </article>
               <!-- PLAYER DPS (per element) -->
               <article class="panel summary-card">
-                <span class="summary-label">DPS</span>
-                <strong id="player-damage" class="summary-value">1</strong>
+                <div style="display: flex; justify-content: space-between; align-items: baseline; width: 100%;">
+                  <span class="summary-label" style="margin-bottom: 0;">DPS</span>
+                  <strong id="player-damage" class="summary-value">1</strong>
+                </div>
                 <div id="player-damage-breakdown" class="damage-breakdown-list"></div>
-                <span class="muted">(damage per second)</span>
+                <!-- <span class="muted">(damage per second)</span> -->
               </article>
             </div>
           </div>
@@ -303,14 +307,15 @@
         <div class="help-copy">
           <p><strong><em>Idle Souls</em></strong> is a fan-made recreation of <em>Dark Souls</em> that plays itself. But, you are still an active participant and it is possible to die.</p>
           <hr>
-          <p>Choose an enemy from the target list. Your character attacks automatically once per game-second. If you choose a different enemy during a fight, you must finish the current fight before switching.</p>
+          <p>Choose an enemy from the target list. Your character attacks automatically once per game-second. If you choose a different enemy during a fight, the current fight must finish before advancing.</p>
           <p>All <strong>Loot</strong> goes into your <strong>Bag</strong>. Equip an item to an available <strong>Equipment</strong> slot to activate its associated skill; equipping another item in that slot returns the previous item to your Bag.</p>
           <hr>
           <p>Enemies deal their listed damage between player attacks. Your <strong>Armor</strong> reduces incoming damage by both a flat amount and/or a percent depending on the items equipped.</p>
           <p>There are certain <strong>Items</strong> that heal you, but at zero health: <strong>YOU DIED</strong>, and the game over screen will appear. Special <strong>Items</strong> you collect may revive you though.</p>
+          <p>You also need to manage <strong>Stamina</strong>, which is consumed with each attack, or you may take extra damage. Certain items can restore some mid-battle.</p>
           <hr>
-          <p>Only dying or defeating a <strong>Boss</strong> pauses combat. Simply choose a new enemy to resume. Manually switching to <strong>Prepare</strong> does not pause.</p>
-          <p>Combat also pauses while the Menu is open or while you are viewing a menu page like Profile or Settings</p>
+          <p>Generally, only dying or defeating a special (bold) enemy pauses combat. Simply choose a new enemy to resume. Defeating a <strong>Boss</strong> also unlocks the Shop.</p>
+          <p>Combat also pauses while the Menu is open or you are viewing a menu page like Profile or Settings.</p>
           <hr>
           <p>Progress is saved in this browser. Use the <em>Profile</em> page to copy a key to bring your progress to another machine.</p>
         </div>

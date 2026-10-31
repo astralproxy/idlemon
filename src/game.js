@@ -125,19 +125,38 @@ export function upgradeLoot(state, content, lootId, materialId) {
   return current + 1;
 }
 
-export function getPlayerMaxHp(level) {
+export function getPlayerMaxHp(level, state = null, content = null) {
   const l = Math.max(1, level);
   const standardLevels = Math.min(l - 1, 29);
   const extraLevels = Math.max(0, l - 30);
-  const hp = PLAYER_STARTING_MAX_HP + (standardLevels * 15) + (extraLevels * 10);
-  return Math.min(PLAYER_MAX_HP_CAP, hp);
+  let hp = PLAYER_STARTING_MAX_HP + (standardLevels * 15) + (extraLevels * 10);
+  
+  // Apply special item multipliers if state and content are provided
+  if (state && content) {
+    const special = getSpecialItemBonuses(state, content);
+    if (special.hpMultiplier) {
+      hp *= special.hpMultiplier;
+      return Math.round(hp); // Bypasses PLAYER_MAX_HP_CAP when multiplied
+    }
+  }
+
+  return Math.min(PLAYER_MAX_HP_CAP, Math.round(hp));
 }
 
-export function getPlayerMaxStamina(level) {
+export function getPlayerMaxStamina(level, state = null, content = null) {
   const l = Math.max(1, level);
   const increases = Math.floor((l - 1) / 2);
-  // Increases by 1 stamina every 2 levels
-  return Math.min(PLAYER_MAX_STAMINA_CAP, PLAYER_STARTING_MAX_STAMINA + increases);
+  let stamina = PLAYER_STARTING_MAX_STAMINA + increases;
+  
+  if (state && content) {
+    const special = getSpecialItemBonuses(state, content);
+    if (special.staminaMultiplier) {
+      stamina *= special.staminaMultiplier;
+      return Math.round(stamina); // Bypasses PLAYER_MAX_STAMINA_CAP when multiplied
+    }
+  }
+
+  return Math.min(PLAYER_MAX_STAMINA_CAP, Math.round(stamina));
 }
 
 export function resetSavedGame(storage = globalThis.localStorage) {
@@ -573,8 +592,8 @@ export function parseSavedState(serialized, content) {
   if (!isNonNegativeNumber(state.xp)) {
     throw new Error("The saved experience value is invalid.");
   }
-  const maxHp = getPlayerMaxHp(state.level);
-  const maxStamina = getPlayerMaxStamina(state.level);
+  const maxHp = getPlayerMaxHp(state.level, state, content);
+  const maxStamina = getPlayerMaxStamina(state.level, state, content);
   const hp = state.hp ?? maxHp;
   const playtime = isNonNegativeNumber(state.playtime) ? state.playtime : 0;
   const ngPlus = Number.isInteger(state.ngPlus) ? state.ngPlus : 0;
@@ -799,13 +818,17 @@ export function getItemDamageBreakdown(state, item, content) {
   const effects = getItemEffects(state, item);
 
   // Flatten all effect values, splitting any comma-separated strings
+  // percent based damage is always a special item counted separately (for now)
   const allValues = [];
+  const allIsPercentage = [];
   for (const eff of effects) {
     if (typeof eff.effectValue === "string" && eff.effectValue.includes(",")) {
       const splitVals = eff.effectValue.split(",").map((v) => Number(v.trim()) || 0);
       allValues.push(...splitVals);
+      for (let i = 0; i < splitVals.length; i++) allIsPercentage.push(eff.effectIsPercentage);
     } else {
       allValues.push(Number(eff.effectValue) || 0);
+      allIsPercentage.push(Boolean(eff.effectIsPercentage));
     }
   }
 
@@ -813,6 +836,11 @@ export function getItemDamageBreakdown(state, item, content) {
   for (let i = 0; i < skills.length; i++) {
     const skName = (skills[i] || "").toLowerCase();
     const val = allValues[i] !== undefined ? allValues[i] : (allValues[0] || 0);
+    const isPct = allIsPercentage[i] !== undefined ? allIsPercentage[i] : (allIsPercentage[0] || false);
+    
+    // Skip percent-based values from flat baseline breakdown (handled via getSpecialItemBonuses)
+    if (isPct) continue;
+
     const skillObj = content?.skills?.find((candidate) => candidate.name.toLowerCase() === skName);
     const effectType = skillObj?.effect;
 
@@ -890,18 +918,30 @@ export function getHumanity(state, content) {
 
 export function getSpecialItemBonuses(state, content, item = null) {
   let extraDamage = 0;
-  let selfDamage = 0; // should be NEGATIV
+  let selfDamage = 0; // should be NEGATIVE
+  let physDamageMultiplier = 1;
+  let magicDamageMultiplier = 1;
+  let fireDamageMultiplier = 1;
+  let lightningDamageMultiplier = 1;
+  let poisonDamageMultiplier = 1;
+  let hpMultiplier = 1;
+  let staminaMultiplier = 1;
   let extraReason = "";
 
   // Helper to check for certain items by name
   const isChaosBlade = (i) => i && (i.id === "chaos-blade" || i.name.toLowerCase().includes("chaos blade"));
   const isFurysword = (i) => i && (i.id === "quelaags-furysword" || i.name.toLowerCase().includes("quelaag's furysword"));
+  const isDuskCrownRing = (i) => i && (i.id === "dusk-crown-ring" || i.name.toLowerCase().includes("dusk crown ring"));
+  const isRingOfFavor = (i) => i && (i.id === "ring-of-favor-and-protection" || i.name.toLowerCase().includes("ring of favor and protection"));
+  const isTinyBeingRing = (i) => i && (i.id === "tiny-beings-ring" || i.name.toLowerCase().includes("tiny being's ring"));
+  const isMaskOfMother = (i) => i && (i.id === "mask-of-the-mother" || i.name.toLowerCase().includes("mask of the mother"));
 
   // If a specific item was passed, check it; otherwise check all equipped gear
   const itemsToCheck = item ? [item] : Object.values(state.gear ?? {}).map(id => content.loot.find(l => l.id === id));
 
   // Check given or equipped gear for special item rules
   for (const gearItem of itemsToCheck) {
+    // WEAPONS
     if (isChaosBlade(gearItem)) {
       extraReason = "Chaos";
       selfDamage = -20;
@@ -925,10 +965,40 @@ export function getSpecialItemBonuses(state, content, item = null) {
         // TODO: add fire damage
       }
     }
+
+    // ARMOR
+    if (isMaskOfMother(gearItem)) {
+      extraReason = "Mother";
+      hpMultiplier *= 1.1;
+    }
+
+    // RINGS
+    // remove else checks if more than 1 can be equipped
+    if (isDuskCrownRing(gearItem)) {
+      extraReason = "Dusk";
+      magicDamageMultiplier *= 1.5;
+      hpMultiplier *= 0.5;
+    }
+    else if (isRingOfFavor(gearItem)) {
+      extraReason = "Favor";
+      hpMultiplier *= 1.2;
+      staminaMultiplier *= 1.2;
+    }
+    else if (isTinyBeingRing(gearItem)) {
+      extraReason = "Being";
+      hpMultiplier *= 1.05;
+    }
   }
 
   return {  damage: extraDamage,
-            selfDamage: selfDamage,
+            selfDamage,
+            physDamageMultiplier,
+            magicDamageMultiplier,
+            fireDamageMultiplier,
+            lightningDamageMultiplier,
+            poisonDamageMultiplier,
+            hpMultiplier,
+            staminaMultiplier,
             reason : extraReason
    };
 }
@@ -946,6 +1016,22 @@ export function getPlayerStats(state, content) {
     defense_flat: 0,
     defense_percent: 0,
   };
+
+  // Get special item multipliers first
+  const specialBonuses = getSpecialItemBonuses(state, content);
+
+  // Calculate base max HP and apply multiplier (ignoring cap if modified)
+  // bonuses were already gotten here for other reasons, so avoid calling again in getplayermaxhp
+  const baseMaxHp = getPlayerMaxHp(state.level);
+  const hpMultiplier = specialBonuses.hpMultiplier ?? 1;
+  const maxHp = Math.round(baseMaxHp * hpMultiplier)
+  const hpModified = hpMultiplier !== 1;
+
+  // Calculate stamina and apply multipliers
+  const baseMaxStamina = getPlayerMaxStamina(state.level, state, content);
+  const staminaMultiplier = specialBonuses.staminaMultiplier ?? 1;
+  const maxStamina = Math.round(baseMaxStamina * staminaMultiplier);
+  const staminaModified = staminaMultiplier !== 1;
 
   for (const lootId of Object.values(state.gear ?? {})) {
     const item = content.loot.find((loot) => loot.id === lootId);
@@ -971,7 +1057,7 @@ export function getPlayerStats(state, content) {
         }
       }
       if (skill?.effect === "heal") {
-        const maxHp = getPlayerMaxHp(state.level);
+        const maxHp = getPlayerMaxHp(state.level, state, content);
         if (item.slot === "R-Hand" || item.slot === "Two-Hand") {
           weaponHealing += eff.effectIsPercentage ? (maxHp * eff.effectValue / 100) : eff.effectValue;
         } else {
@@ -988,16 +1074,24 @@ export function getPlayerStats(state, content) {
     }
   }
 
-  // Incorporate special item rules (e.g., Quelaag's Furysword humanity scaling)
-  const specialBonuses = getSpecialItemBonuses(state, content);
+  const basePhysical = 1 + physicalDamage + specialBonuses.damage;
+  const totalPhysical = basePhysical * (specialBonuses.physDamageMultiplier || 1);
+  const totalMagic = magicDamage * (specialBonuses.magicDamageMultiplier || 1);
+  const totalFire = fireDamage * (specialBonuses.fireDamageMultiplier || 1);
+  const totalLightning = lightningDamage * (specialBonuses.lightningDamageMultiplier || 1);
+  const totalPoison = poisonDamage * (specialBonuses.poisonDamageMultiplier || 1);
 
-  const totalPhysical = 1 + physicalDamage + specialBonuses.damage;
-  const totalDamage = totalPhysical + magicDamage + fireDamage + lightningDamage + poisonDamage;
+  const totalDamage = totalPhysical + totalMagic + totalFire + totalLightning + totalPoison;
 
   return {
-    damage: totalDamage,//1 + gearDamage + specialBonuses.damage,
+    damage: totalDamage,
     physicalDamage: totalPhysical,
-    magicDamage, fireDamage, lightningDamage, poisonDamage,
+    magicDamage: totalMagic,
+    fireDamage: totalFire,
+    lightningDamage: totalLightning,
+    poisonDamage: totalPoison,
+    maxHp, hpModified,
+    maxStamina, staminaModified,
     defense: state.godMode ? 999 : bonuses.defense_flat,
     defensePercent: Math.min(100, bonuses.defense_percent),
     xpMultiplier: Math.max(0, 1 + bonuses.xp_multiplier),
@@ -1102,7 +1196,7 @@ export function useLoot(state, content, lootId, random = Math.random) {
     state.activeTab = "prepare";
     state.prepareViewed = true;
   } else if (skill.effect === "heal") {
-    const maxHp = getPlayerMaxHp(state.level);
+    const maxHp = getPlayerMaxHp(state.level, state, content);
     if (state.gameOver || state.hp >= maxHp) {
       return false;
     }
@@ -1111,7 +1205,7 @@ export function useLoot(state, content, lootId, random = Math.random) {
       : item.effectValue;
     state.hp = Math.min(maxHp, state.hp + healing);
   } else if (skill.effect === "stamina") {
-    const maxStamina = state.maxStamina ?? getPlayerMaxStamina(state.level);
+    const maxStamina = stats.maxStamina ?? getPlayerMaxStamina(state.level, state, content);
     if ((state.stamina ?? maxStamina) >= maxStamina) {
       return false;
     }
@@ -1217,10 +1311,10 @@ export function canUseLoot(state, content, lootId) {
     return Boolean(state.targetMonsterId) && !state.awaitingMonsterSelection && !state.gameOver;
   }
   if (skill.effect === "heal") {
-    return !state.gameOver && state.hp < getPlayerMaxHp(state.level);
+    return !state.gameOver && state.hp < getPlayerMaxHp(state.level, state, content);
   }
   if (skill.effect === "stamina") {
-    const maxStamina = state.maxStamina ?? getPlayerMaxStamina(state.level);
+    const maxStamina = state.maxStamina ?? getPlayerMaxStamina(state.level, state, content);
     return (state.stamina ?? maxStamina) < maxStamina;
   }
   if (skill.effect === "damage_flat") {
@@ -1274,7 +1368,7 @@ export function revivePlayer(state, content, lootId) {
     return false;
   }
   consumeLoot(state, item.id);
-  state.hp = getPlayerMaxHp(state.level) / 2; // half
+  state.hp = getPlayerMaxHp(state.level, state, content) / 2; // half
   state.gameOver = false;
 
   // Reset selected monster so the player must choose a new target
@@ -1341,13 +1435,13 @@ export function selectMonster(state, content, monsterId) {
   state.pendingTargetMonsterId = monster.id;
 }
 
-function grantExperience(state, amount) {
+function grantExperience(state, content, amount) {
   state.xp += amount;
   while (state.xp >= experienceForNextLevel(state.level)) {
     state.xp -= experienceForNextLevel(state.level);
     state.level += 1;
 
-    state.maxStamina = getPlayerMaxStamina(state.level);
+    state.maxStamina = getPlayerMaxStamina(state.level, state, content);
     state.stamina = state.maxStamina; // Refill stamina on level up (optional, or let it scale)
   }
 }
@@ -1355,10 +1449,10 @@ function grantExperience(state, amount) {
 function grantKillRewards(state, content, monster, random = Math.random) {
   const stats = getPlayerStats(state, content);
   state.kills[monster.id] = (state.kills[monster.id] ?? 0) + 1;
-  grantExperience(state, Math.max(1, Math.floor(monster.xp * stats.xpMultiplier)));
+  grantExperience(state, content, Math.max(1, Math.floor(monster.xp * stats.xpMultiplier)));
 
   // Fully regenerate stamina upon defeating a monster or boss
-  const maxStamina = state.maxStamina ?? getPlayerMaxStamina(state.level);
+  const maxStamina = state.maxStamina ?? getPlayerMaxStamina(state.level, state, content);
   state.stamina = maxStamina;
 
   // Grant souls from the monster's Souls column with multiplier
@@ -1388,41 +1482,137 @@ function grantKillRewards(state, content, monster, random = Math.random) {
         ? rawLootChances
         : [rawLootChances];
 
-    for (let i = 0; i < lootNames.length; i++) {
-      const name = lootNames[i];
-      const chance = Number.isFinite(lootChances[i]) ? lootChances[i] : (lootChances[0] ?? 100);
-      const roll = Math.floor(Math.random() * 100);
-      const dropped = chance >= 100 || roll < chance;
-      lastRoll = roll;
+    const enemyType = (monster.type ?? "").toLowerCase();
+    const isBossOrMutuallyExclusive = enemyType === "boss" || enemyType === "miniboss" || enemyType === "phantom";
 
-      if (dropped) {
+    const isAlreadyOwned = (itemId) => {
+      const inBag = (state.lootInventory[itemId] ?? 0) > 0;
+      const equipped = Object.values(state.gear ?? {}).includes(itemId);
+      return inBag || equipped;
+    };
+
+    if (isBossOrMutuallyExclusive) {
+      // Separate items into Guaranteed (>= 100) and Mutually Exclusive (< 100)
+      const guaranteedIndices = [];
+      const exclusiveIndices = [];
+
+      for (let i = 0; i < lootNames.length; i++) {
+        const chance = lootChances[i] ?? lootChances[0] ?? 100;
+        if (chance >= 100) {
+          guaranteedIndices.push(i);
+        } else {
+          exclusiveIndices.push(i);
+        }
+      }
+
+      // 1. Process Guaranteed Drops (Chance >= 100) independently
+      for (const idx of guaranteedIndices) {
+        const name = lootNames[idx];
         const item = content.loot.find((loot) => loot.name.toLowerCase() === name.toLowerCase());
         if (item) {
-          const isUnique = (item.notes ?? "").toLowerCase().includes("unique");
-          const totalOwned = (state.lootInventory[item.id] ?? 0) + (Object.values(state.gear).includes(item.id) ? 1 : 0);
-
-          const maxCount = getMaxItemCount(state, item);
-          if (isUnique ? totalOwned === 0 : getTotalItemCount(state, item.id) < maxCount) {
-            state.lootInventory[item.id] = (state.lootInventory[item.id] ?? 0) + 1;
-            markLootNew(state, item.id);
+          const isUnique = (item.notes ?? "").toLowerCase().includes("unique") || isBossItem(item);
+          if (isUnique && isAlreadyOwned(item.id)) {
+            continue;
           }
 
-          droppedLootNames.push(item.name);
+          const maxCount = getMaxItemCount(state, item);
+          if (getTotalItemCount(state, item.id) < maxCount) {
+            state.lootInventory[item.id] = (state.lootInventory[item.id] ?? 0) + 1;
+            markLootNew(state, item.id);
+            droppedLootNames.push(item.name);
+          }
+        }
+      }
+
+      // 2. Process Mutually Exclusive Drops (Chance < 100)
+      if (exclusiveIndices.length > 0) {
+        let validIndices = [];
+        let validChances = [];
+
+        for (const idx of exclusiveIndices) {
+          const name = lootNames[idx];
+          const item = content.loot.find((loot) => loot.name.toLowerCase() === name.toLowerCase());
+          if (item) {
+            const isUnique = (item.notes ?? "").toLowerCase().includes("unique") || isBossItem(item);
+            if (isUnique && isAlreadyOwned(item.id)) {
+              continue;
+            }
+          }
+          validIndices.push(idx);
+          validChances.push(Math.max(0, lootChances[idx] ?? 100));
+        }
+
+        // Fallback: If player owns all exclusive items, allow duplicates from them
+        if (validIndices.length === 0 && exclusiveIndices.length > 0) {
+          for (const idx of exclusiveIndices) {
+            validIndices.push(idx);
+            validChances.push(Math.max(0, lootChances[idx] ?? 100));
+          }
+        }
+
+        if (validIndices.length > 0) {
+          const totalWeight = validChances.reduce((sum, chance) => sum + chance, 0);
+          let roll = Math.floor(Math.random() * (totalWeight > 0 ? totalWeight : 100));
+          lastRoll = roll;
+
+          let cumulative = 0;
+          let selectedValidIndex = -1;
+          for (let i = 0; i < validChances.length; i++) {
+            cumulative += validChances[i];
+            if (roll < cumulative) {
+              selectedValidIndex = i;
+              break;
+            }
+          }
+
+          if (selectedValidIndex !== -1) {
+            const originalIndex = validIndices[selectedValidIndex];
+            const name = lootNames[originalIndex];
+            const item = content.loot.find((loot) => loot.name.toLowerCase() === name.toLowerCase());
+            if (item) {
+              const maxCount = getMaxItemCount(state, item);
+              if (getTotalItemCount(state, item.id) < maxCount) {
+                state.lootInventory[item.id] = (state.lootInventory[item.id] ?? 0) + 1;
+                markLootNew(state, item.id);
+                droppedLootNames.push(item.name);
+              }
+            }
+          }
+        }
+      }
+    } else {
+      // Standard independent drop roll for normal monsters
+      for (let i = 0; i < lootNames.length; i++) {
+        const name = lootNames[i];
+        const chance = Number.isFinite(lootChances[i]) ? lootChances[i] : (lootChances[0] ?? 100);
+        const roll = Math.floor(Math.random() * 100);
+        const dropped = chance >= 100 || roll < chance;
+        lastRoll = roll;
+
+        if (dropped) {
+          const item = content.loot.find((loot) => loot.name.toLowerCase() === name.toLowerCase());
+          if (item) {
+            const isUnique = (item.notes ?? "").toLowerCase().includes("unique");
+            if (isUnique && isAlreadyOwned(item.id)) {
+              continue;
+            }
+
+            const maxCount = getMaxItemCount(state, item);
+            if (getTotalItemCount(state, item.id) < maxCount) {
+              state.lootInventory[item.id] = (state.lootInventory[item.id] ?? 0) + 1;
+              markLootNew(state, item.id);
+              droppedLootNames.push(item.name);
+            }
+          }
         }
       }
     }
+
     state.lastLootCheck = {
       monsterName: monster.name,
       roll: lastRoll,
       chance: lootChance,
       dropped: droppedLootNames.length > 0,
-    };
-  } else {
-    state.lastLootCheck = {
-      monsterName: monster.name,
-      roll: null,
-      chance: lootChance,
-      dropped: false,
     };
   }
   state.lastDroppedLootNames = droppedLootNames;
@@ -1492,7 +1682,7 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
 
   // Apply passive healing from equipped gear (but not weapons)
   if (stats.gearHealing > 0 && state.hp > 0 && !state.gameOver) {
-    const maxHp = getPlayerMaxHp(state.level);
+    const maxHp = getPlayerMaxHp(state.level, state, content);
     state.hp = Math.min(maxHp, state.hp + stats.gearHealing);
   }
 
@@ -1517,7 +1707,7 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
   {
     // Stamina Regen on tick between attack sequences
     if (state.monsterHp !== -1) {
-      const maxStamina = state.maxStamina ?? PLAYER_STARTING_MAX_STAMINA;
+      const maxStamina = stats.maxStamina ?? getPlayerMaxStamina(state.level, state, content);
       const regenAmount = state.doubleStaminaNextTick ? PLAYER_STAMINA_REGEN_RATE * 2 : PLAYER_STAMINA_REGEN_RATE;
       state.doubleStaminaNextTick = false;
 
@@ -1556,7 +1746,7 @@ export function advanceGame(state, content, elapsedSeconds, random = Math.random
 
     // Apply healing from equipped weapons
     if (stats.weaponHealing > 0 && state.hp > 0 && !state.gameOver) {
-      const maxHp = getPlayerMaxHp(state.level);
+      const maxHp = getPlayerMaxHp(state.level, state, content);
       state.hp = Math.min(maxHp, state.hp + stats.weaponHealing);
     }
     

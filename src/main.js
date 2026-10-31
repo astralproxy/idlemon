@@ -163,6 +163,7 @@ const elements = {
   currencyCount: document.querySelector("#currency-count"),
   hp: document.querySelector("#player-hp"),
   hpMax: document.querySelector("#player-max-hp"),
+  staminaMax: document.querySelector("#player-max-stamina"),
   playerHumanityIcon: document.querySelector("#player-humanity-icon"),
   playerHpContainer: document.querySelector("#player-hp-container"),
   playerHpMeter: document.querySelector("#player-hp-meter"),
@@ -819,22 +820,63 @@ function render() {
   elements.xpMeter.parentElement.setAttribute("aria-valuenow", String(Math.floor(state.xp)));
   elements.currencyCount.textContent = numberFormat.format(state.currencyBalance);
   elements.shopCurrencyCount.textContent = numberFormat.format(state.currencyBalance);
-  
-  const playerHp = Math.floor(state.hp);
-  const playerHpMax = getPlayerMaxHp(state.level);
-  elements.hp.textContent = numberFormat.format(playerHp);
-  elements.hpMax.textContent = numberFormat.format(playerHpMax);
-  
+
+  // Humanity count art
   const humanityVal = getHumanity(state, content);
   if (elements.playerHumanityIcon) elements.playerHumanityIcon.src = `art/hum${humanityVal}.webp`;
+  
+  // PLAYER HP (Health) NUMBERS and BAR
+  // Base unreduced max HP at the current level
+  const playerHp = Math.floor(state.hp);
+  const baseMaxHp = getPlayerMaxHp(state.level);
+  const playerHpMax = stats.maxHp;//getPlayerMaxHp(state.level, state, content);
+  elements.hp.textContent = numberFormat.format(playerHp);
+  elements.hpMax.textContent = numberFormat.format(playerHpMax);
+  // color max HP if modified
+  if (stats.hpModified) {
+    elements.hpMax.style.color = (playerHpMax < baseMaxHp) ? "var(--warning)" : "var(--warning-good)";
+  }
+  else
+  {
+    elements.hpMax.style.color = "";
+  }
 
-  const hpContainerPct = Math.max(0, Math.min(100, (playerHpMax / PLAYER_MAX_HP_CAP) * 100));
-  const hpFillPct = Math.max(0, Math.min(100, (playerHp / playerHpMax) * 100));
-  if (elements.playerHpContainer) elements.playerHpContainer.style.width = `${hpContainerPct}%`;
-  if (elements.playerHpMeter) elements.playerHpMeter.style.width = `${hpFillPct}%`;
+  // Container scaling & missing HP fill calculation
+  const hpContainerPct = Math.max(0, Math.min(100, (baseMaxHp / PLAYER_MAX_HP_CAP) * 100));
+  const hpFillPct = Math.max(0, Math.min(100, (playerHp / baseMaxHp) * 100));
+  const currentMaxPct = Math.max(0, Math.min(100, (playerHpMax / baseMaxHp) * 100));
+
+  if (elements.playerHpContainer) {
+    elements.playerHpContainer.style.width = `${hpContainerPct}%`;
+  }
+  if (elements.playerHpMeter) {
+    elements.playerHpMeter.style.width = `${hpFillPct}%`;
+  }
+  // Assuming the green fill meter (elements.playerHpMeter) is wrapped inside a track element:
+  const hpTrack = elements.playerHpMeter?.parentElement;
+  if (hpTrack) {
+    hpTrack.style.position = "relative";
+    hpTrack.style.overflow = "hidden";
+  }
+
+  let missingBar = hpTrack?.querySelector(".hp-missing-bar");
+  if (stats.hpModified && playerHpMax < baseMaxHp) {
+    if (!missingBar && hpTrack) {
+      missingBar = document.createElement("div");
+      missingBar.className = "hp-missing-bar";
+      hpTrack.appendChild(missingBar);
+    }
+    if (missingBar) {
+      missingBar.style.left = `${currentMaxPct}%`;
+      missingBar.style.width = `${100 - currentMaxPct}%`;
+      missingBar.style.display = "block";
+    }
+  } else if (missingBar) {
+    missingBar.style.display = "none";
+  }
   
   const staminaVal = Math.max(0, state.stamina ?? PLAYER_STARTING_MAX_STAMINA);
-  const maxStamina = state.maxStamina ?? PLAYER_STARTING_MAX_STAMINA;
+  const maxStamina = stats.maxStamina;//state.maxStamina ?? PLAYER_STARTING_MAX_STAMINA;
   const staminaContainerPct = Math.max(0, Math.min(100, (maxStamina / PLAYER_MAX_STAMINA_CAP) * 100));
   const staminaFillPct = Math.max(0, Math.min(100, (staminaVal / maxStamina) * 100));
   if (elements.playerStaminaContainer) elements.playerStaminaContainer.style.width = `${staminaContainerPct}%`;
@@ -844,15 +886,24 @@ function render() {
   const maxStaminaEl = document.querySelector("#player-max-stamina");
   if (maxStaminaEl) maxStaminaEl.textContent = numberFormat.format(maxStamina);
 
-  //elements.armor.textContent = numberFormat.format(stats.defense);
+  // color max stamina if modified
+  elements.staminaMax.style.color = (stats.staminaModified) ? "var(--warning-good)" : "";
+
   elements.armor.textContent = `${numberFormatDecimal.format(stats.defense)} + ${stats.defensePercent}%`;
   elements.damage.textContent = numberFormat.format(stats.damage);
   elements.compactPlayerLevel.textContent = numberFormat.format(state.level);
   elements.compactPlayerHp.textContent = numberFormat.format(playerHp);
   elements.compactPlayerHpMax.textContent = numberFormat.format(playerHpMax);
+  // color max HP if modified (same as above)
+  if (stats.hpModified) {
+    elements.compactPlayerHpMax.style.color = (playerHpMax < baseMaxHp) ? "var(--warning)" : "var(--warning-good)";
+  }
+  else
+  {
+    elements.compactPlayerHpMax.style.color = "";
+  }
   const hpPercent = (playerHp / playerHpMax) * 100;
   elements.compactPlayerHp.classList.toggle("is-low-hp", hpPercent < 20);
-  //elements.compactPlayerArmor.textContent = numberFormat.format(stats.defense);
   elements.compactPlayerArmor.textContent = `${numberFormatDecimal.format(stats.defense)} + ${stats.defensePercent}%`;
 
   // Parse target monster resistances if active
